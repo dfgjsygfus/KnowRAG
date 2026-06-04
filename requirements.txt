@@ -1,0 +1,3 @@
+fastapi
+pymilvus
+uvicorn

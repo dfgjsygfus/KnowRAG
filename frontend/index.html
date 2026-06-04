@@ -1,0 +1,860 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KnowRAG Admin Console</title>
+<style>
+:root {
+  --page-bg: #f5f5f7;
+  --surface: #ffffff;
+  --fg: #1d1d1f;
+  --fg-secondary: #6e6e73;
+  --border-light: #e5e5ea;
+  --accent: #0071e3;
+  --accent-hover: #0077ed;
+  --accent-pressed: #0066cc;
+  --success: #34c759;
+  --warning: #ff9f0a;
+  --danger: #ff3b30;
+  --sidebar-bg: rgba(245, 245, 247, 0.72);
+  --sidebar-active: rgba(0, 0, 0, 0.06);
+  --sidebar-hover: rgba(0, 0, 0, 0.04);
+  --radius: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+  --radius-full: 980px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 2px 8px rgba(0,0,0,0.04);
+  --shadow-md: 0 2px 6px rgba(0,0,0,0.05), 0 4px 16px rgba(0,0,0,0.05);
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--page-bg);
+  color: var(--fg);
+  font: 14px/1.47 var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+.app-shell { display: flex; height: 100vh; overflow: hidden; }
+.sidebar {
+  width: 256px;
+  flex-shrink: 0;
+  background: var(--sidebar-bg);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border-right: 1px solid rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+}
+.sidebar-header { padding: 28px 24px 20px; }
+.logo-area { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.logo-icon {
+  width: 34px;
+  height: 34px;
+  background: var(--fg);
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font: 600 15px var(--font-display);
+}
+.logo-label { font: 600 15px/1.2 var(--font-display); color: var(--fg); }
+.logo-sub { font: 12px/1.3 var(--font-body); color: var(--fg-secondary); margin-left: 44px; }
+.sidebar-nav { flex: 1; padding: 8px 16px; display: flex; flex-direction: column; gap: 2px; }
+.nav-label {
+  font: 600 11px/1.3 var(--font-body);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-secondary);
+  padding: 20px 12px 8px;
+}
+.sidebar-nav button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fg);
+  font: 13.5px/1.3 var(--font-body);
+  cursor: pointer;
+  text-align: left;
+}
+.sidebar-nav button:hover { background: var(--sidebar-hover); }
+.sidebar-nav button.active { background: var(--sidebar-active); font-weight: 590; }
+.nav-icon { width: 20px; height: 20px; display: grid; place-items: center; color: var(--fg-secondary); }
+.sidebar-nav button.active .nav-icon { color: var(--accent); }
+.nav-badge {
+  margin-left: auto;
+  background: rgba(0,0,0,0.08);
+  color: var(--fg-secondary);
+  font: 590 11px/1 var(--font-body);
+  padding: 3px 8px;
+  border-radius: 999px;
+  min-width: 22px;
+  text-align: center;
+}
+.sidebar-footer {
+  padding: 16px 24px;
+  border-top: 1px solid rgba(0,0,0,0.06);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #e5e5ea;
+  display: grid;
+  place-items: center;
+  font: 600 11px var(--font-body);
+  color: var(--fg-secondary);
+}
+.user-info { font: 12px/1.3 var(--font-body); }
+.user-info span { display: block; font-size: 11px; color: var(--fg-secondary); }
+
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+.main-header {
+  padding: 20px 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.main-header h1 { font: 600 28px/1.1 var(--font-display); color: var(--fg); }
+.header-meta { font: 13px/1.3 var(--font-body); color: var(--fg-secondary); margin-top: 4px; }
+.main-body { flex: 1; overflow-y: auto; padding: 0 36px 36px; }
+
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.stat-card {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.stat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: #f5f5f7;
+  color: var(--accent);
+}
+.stat-value { font: 600 28px/1.1 var(--font-display); color: var(--fg); }
+.stat-label { font: 13px/1.3 var(--font-body); color: var(--fg-secondary); }
+.stat-sub { font: 11px/1.3 var(--font-body); color: var(--fg-secondary); margin-top: 2px; }
+
+.section-card {
+  background: var(--surface);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+.section-card-header {
+  padding: 18px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-light);
+}
+.section-card-header h2 { font: 600 16px/1.2 var(--font-display); }
+
+.upload-zone {
+  margin: 24px;
+  border: 2px dashed #c7c7cc;
+  border-radius: var(--radius-lg);
+  padding: 48px 40px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: #fafafa;
+}
+.upload-zone:hover, .upload-zone.drag-over {
+  border-color: var(--accent);
+  background: #f2f7fd;
+}
+.upload-icon-circle {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 16px;
+  background: #f5f5f7;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+}
+.upload-zone p { font: 15px/1.4 var(--font-body); color: var(--fg); }
+.browse-link { color: var(--accent); font-weight: 500; }
+.hint { font: 12px/1.4 var(--font-body); color: var(--fg-secondary); margin-top: 6px; }
+
+.toolbar { display: flex; align-items: center; gap: 12px; padding: 16px 24px; flex-wrap: wrap; }
+.spacer { flex: 1; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-icon { position: absolute; left: 14px; pointer-events: none; color: #8e8e93; }
+.search-input {
+  width: 260px;
+  padding: 10px 16px 10px 38px;
+  border: 1px solid #d2d2d7;
+  border-radius: 10px;
+  background: #f5f5f7;
+  color: var(--fg);
+  font: 14px/1.4 var(--font-body);
+  outline: none;
+}
+.search-input:focus {
+  border-color: var(--accent);
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(0,113,227,0.1);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 18px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: #f5f5f7;
+  color: var(--fg);
+  font: 590 13px/1.3 var(--font-body);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.btn:hover { background: #e8e8ed; }
+.btn:disabled { cursor: not-allowed; opacity: 0.5; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:active { background: var(--accent-pressed); transform: scale(0.97); }
+.btn-danger { background: #fff; color: var(--danger); }
+.btn-danger:hover { background: #fff0ef; }
+.btn-ghost { background: transparent; color: var(--fg-secondary); }
+.btn-ghost:hover { background: rgba(0,0,0,0.05); color: var(--fg); }
+.btn-sm { padding: 5px 13px; font-size: 12px; }
+
+.data-table { width: 100%; border-collapse: collapse; font: 14px/1.4 var(--font-body); }
+.data-table th {
+  text-align: left;
+  padding: 10px 24px;
+  font: 590 11px/1.3 var(--font-body);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-secondary);
+  border-bottom: 1px solid var(--border-light);
+}
+.data-table td {
+  padding: 12px 24px;
+  border-bottom: 1px solid #f5f5f7;
+  color: var(--fg);
+  vertical-align: middle;
+}
+.data-table tbody tr:hover td { background: #fafafa; }
+.cell-name { display: flex; align-items: center; gap: 12px; font-weight: 500; }
+.file-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: #f5f5f7;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.cell-actions { display: flex; gap: 4px; }
+.mono { font-family: var(--font-mono); font-size: 11px; }
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font: 590 12px/1.3 var(--font-body);
+  background: #f5f5f7;
+  color: var(--fg-secondary);
+}
+.status-pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #c7c7cc; }
+.status-pill.ready::before { background: var(--success); }
+.status-pill.indexing::before { background: var(--warning); }
+.status-pill.failed::before { background: var(--danger); }
+
+.type-tag {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font: 590 11px/1.3 var(--font-body);
+  background: #f5f5f7;
+  color: var(--fg-secondary);
+}
+.detail-panel {
+  margin: 24px;
+  background: #fafafa;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: #f5f5f7;
+  font: 590 13px/1.3 var(--font-body);
+}
+.detail-meta { font: 11px var(--font-mono); color: var(--fg-secondary); }
+.detail-panel pre {
+  font: 12px/1.6 var(--font-mono);
+  padding: 20px;
+  margin: 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  max-height: 440px;
+  overflow-y: auto;
+  color: var(--fg);
+}
+.result-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  padding: 18px 20px;
+}
+.retrieval-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px auto;
+  gap: 12px;
+  padding: 20px 24px;
+  align-items: center;
+}
+.retrieval-input {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid #d2d2d7;
+  border-radius: 10px;
+  background: #f5f5f7;
+  color: var(--fg);
+  font: 14px/1.4 var(--font-body);
+  outline: none;
+}
+.retrieval-input:focus {
+  border-color: var(--accent);
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(0,113,227,0.1);
+}
+.retrieval-results {
+  display: grid;
+  gap: 12px;
+  padding: 0 24px 24px;
+}
+.retrieval-result {
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+.retrieval-result-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #fafafa;
+  border-bottom: 1px solid var(--border-light);
+}
+.retrieval-result-title { font: 590 13px/1.35 var(--font-body); }
+.retrieval-score { font: 12px/1.3 var(--font-mono); color: var(--accent); }
+.retrieval-result-body {
+  padding: 14px 16px;
+  font: 12px/1.65 var(--font-mono);
+  white-space: pre-wrap;
+  color: var(--fg);
+}
+.result-item {
+  background: #fff;
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 12px;
+}
+.result-item b { display: block; font: 600 18px/1.2 var(--font-display); }
+.result-item span { font: 12px/1.3 var(--font-body); color: var(--fg-secondary); }
+.empty-state { text-align: center; padding: 64px 24px; color: var(--fg-secondary); }
+.empty-icon-circle {
+  width: 68px;
+  height: 68px;
+  margin: 0 auto 20px;
+  background: #f5f5f7;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--fg-secondary);
+}
+.empty-state h3 { font: 600 16px/1.3 var(--font-display); color: var(--fg); margin-bottom: 6px; }
+.toast-container {
+  position: fixed;
+  top: 28px;
+  right: 28px;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.toast {
+  background: var(--surface);
+  color: var(--fg);
+  padding: 14px 20px;
+  border-radius: 14px;
+  font: 14px/1.3 var(--font-body);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.04);
+}
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 10px; }
+
+@media (max-width: 960px) {
+  .sidebar { width: 220px; }
+  .main-header, .main-body { padding-left: 22px; padding-right: 22px; }
+  .stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .result-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-area">
+        <div class="logo-icon">R</div>
+        <span class="logo-label">KnowRAG</span>
+      </div>
+      <div class="logo-sub">Admin Console</div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-label">功能</div>
+      <button class="active" id="nav-documents">
+        <span class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="16" y2="11"/></svg>
+        </span>
+        文档入库
+        <span class="nav-badge" id="file-badge">0</span>
+      </button>
+      <button id="nav-milvus">
+        <span class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 9h8M8 13h5"/></svg>
+        </span>
+        Milvus
+        <span class="nav-badge" id="stored-badge">0</span>
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="avatar">A</div>
+      <div class="user-info">管理员<span>本地离线入库</span></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="main-header">
+      <div>
+        <h1>文档入库</h1>
+        <div class="header-meta" id="header-meta">上传 Markdown 或文本文件，写入 Milvus 向量库</div>
+      </div>
+      <button class="btn btn-primary" id="btn-index-all" disabled>全部入库</button>
+    </header>
+
+    <div class="main-body">
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+          </div>
+          <div><div class="stat-value" id="stat-files">0</div><div class="stat-label">文件数</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+          </div>
+          <div><div class="stat-value" id="stat-stored">0</div><div class="stat-label">已入库</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M9 9h6v6H9z"/></svg>
+          </div>
+          <div><div class="stat-value" id="stat-chunks">0</div><div class="stat-label">Chunk</div><div class="stat-sub">最近结果</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+          </div>
+          <div><div class="stat-value" id="stat-vectors">0</div><div class="stat-label">向量</div><div class="stat-sub">4096 维</div></div>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <div class="upload-zone" id="upload-zone">
+          <div class="upload-icon-circle">
+            <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+          </div>
+          <p>拖拽文件到此处，或 <span class="browse-link">点击浏览</span></p>
+          <p class="hint">支持 .md / .markdown / .txt，上传后可预览并写入 Milvus</p>
+          <input type="file" accept=".md,.markdown,.txt" id="file-input" hidden multiple>
+        </div>
+        <div class="toolbar">
+          <div class="search-box">
+            <span class="search-icon">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8e8e93" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </span>
+            <input type="text" class="search-input" placeholder="搜索文件或内容" id="file-search">
+          </div>
+          <span class="spacer"></span>
+          <button class="btn btn-ghost" id="btn-clear">清空</button>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>文件名</th>
+              <th>状态</th>
+              <th style="width:90px;">大小</th>
+              <th style="width:170px;">入库结果</th>
+              <th style="width:220px;"></th>
+            </tr>
+          </thead>
+          <tbody id="file-table-body"></tbody>
+        </table>
+        <div class="empty-state" id="empty-state">
+          <div class="empty-icon-circle">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+          </div>
+          <h3>还没有文档</h3>
+          <p>上传一个 Markdown 文件，开始构建你的本地知识库。</p>
+        </div>
+      </div>
+
+      <div id="detail-area" style="display:none;"></div>
+    </div>
+  </main>
+</div>
+<div class="toast-container" id="toast-container"></div>
+
+<script src="app.js"></script>
+<script type="application/json" id="legacy-disabled">
+const API_BASE_URL = localStorage.getItem("knowrag-api-base") || "http://127.0.0.1:8000";
+const FILE_STORAGE_KEY = "knowrag-upload-files";
+const files = loadFiles();
+let selectedIndex = -1;
+
+const uploadZone = document.getElementById("upload-zone");
+const fileInput = document.getElementById("file-input");
+const fileTableBody = document.getElementById("file-table-body");
+const emptyState = document.getElementById("empty-state");
+const fileSearch = document.getElementById("file-search");
+const detailArea = document.getElementById("detail-area");
+
+uploadZone.addEventListener("click", () => fileInput.click());
+uploadZone.addEventListener("dragover", event => {
+  event.preventDefault();
+  uploadZone.classList.add("drag-over");
+});
+uploadZone.addEventListener("dragleave", () => uploadZone.classList.remove("drag-over"));
+uploadZone.addEventListener("drop", event => {
+  event.preventDefault();
+  uploadZone.classList.remove("drag-over");
+  handleFiles(event.dataTransfer.files);
+});
+fileInput.addEventListener("change", event => {
+  handleFiles(event.target.files);
+  fileInput.value = "";
+});
+fileSearch.addEventListener("input", renderFiles);
+document.getElementById("btn-clear").addEventListener("click", () => {
+  files.splice(0, files.length);
+  saveFiles();
+  selectedIndex = -1;
+  detailArea.style.display = "none";
+  renderFiles();
+  updateStats();
+});
+document.getElementById("btn-index-all").addEventListener("click", async () => {
+  for (let index = 0; index < files.length; index++) {
+    if (files[index].status !== "ready") continue;
+    await indexFile(index);
+  }
+});
+
+fileTableBody.addEventListener("click", event => {
+  const preview = event.target.closest("[data-preview]");
+  const indexButton = event.target.closest("[data-index]");
+  const remove = event.target.closest("[data-remove]");
+
+  if (preview) {
+    showDetail(Number(preview.dataset.preview));
+    return;
+  }
+  if (indexButton) {
+    indexFile(Number(indexButton.dataset.index));
+    return;
+  }
+  if (remove) {
+    const index = Number(remove.dataset.remove);
+    files.splice(index, 1);
+    if (selectedIndex === index) {
+      selectedIndex = -1;
+      detailArea.style.display = "none";
+    }
+    saveFiles();
+    renderFiles();
+    updateStats();
+  }
+});
+
+function handleFiles(fileList) {
+  Array.from(fileList).forEach(file => {
+    const ext = file.name.split(".").pop().toLowerCase();
+    if (!["md", "markdown", "txt"].includes(ext)) {
+      showToast("仅支持 .md / .markdown / .txt 文件");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      files.push({
+        name: file.name,
+        ext,
+        size: file.size,
+        content: String(reader.result || ""),
+        status: "ready",
+        uploadedAt: new Date().toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }),
+        result: null,
+        error: "",
+      });
+      saveFiles();
+      renderFiles();
+      updateStats();
+      showToast(`已读取 ${file.name}`);
+    };
+    reader.readAsText(file, "utf-8");
+  });
+}
+
+async function indexFile(index) {
+  const file = files[index];
+  if (!file) return;
+
+  file.status = "indexing";
+  file.error = "";
+  saveFiles();
+  renderFiles();
+  updateStats();
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/ingestion/index`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        source_path: `frontend-upload/${file.name}`,
+        markdown: file.content,
+        preserve_code_blocks: true,
+      }),
+    });
+    const body = await response.json();
+    if (!response.ok) {
+      throw new Error(body.detail || `HTTP ${response.status}`);
+    }
+    file.status = "stored";
+    file.result = body;
+    saveFiles();
+    selectedIndex = index;
+    showDetail(index);
+    showToast(`已入库 ${file.name}`);
+  } catch (error) {
+    file.status = "failed";
+    file.error = error.message || "入库失败";
+    saveFiles();
+    showToast(file.error);
+  } finally {
+    renderFiles();
+    updateStats();
+  }
+}
+
+function renderFiles() {
+  const keyword = fileSearch.value.trim().toLowerCase();
+  const filtered = files
+    .map((file, index) => ({ file, index }))
+    .filter(({ file }) => !keyword || file.name.toLowerCase().includes(keyword) || file.content.toLowerCase().includes(keyword));
+
+  emptyState.style.display = files.length ? "none" : "block";
+  fileTableBody.innerHTML = "";
+
+  filtered.forEach(({ file, index }) => {
+    const resultText = file.result
+      ? `${file.result.stored_count}/${file.result.vectors_count} · ${file.result.collection_name}`
+      : file.error || "未入库";
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>
+        <div class="cell-name">
+          <div class="file-icon">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+          </div>
+          <span>${escapeHTML(file.name)}</span>
+        </div>
+      </td>
+      <td><span class="status-pill ${statusClass(file.status)}">${statusLabel(file.status)}</span></td>
+      <td class="mono">${formatSize(file.size)}</td>
+      <td class="mono">${escapeHTML(resultText)}</td>
+      <td>
+        <div class="cell-actions">
+          <button class="btn btn-sm btn-ghost" data-preview="${index}">预览</button>
+          <button class="btn btn-sm btn-primary" data-index="${index}" ${file.status === "indexing" ? "disabled" : ""}>入库</button>
+          <button class="btn btn-sm btn-danger" data-remove="${index}">删除</button>
+        </div>
+      </td>
+    `;
+    fileTableBody.appendChild(row);
+  });
+
+  document.getElementById("file-badge").textContent = files.length;
+  document.getElementById("btn-index-all").disabled = !files.some(file => file.status === "ready");
+}
+
+function showDetail(index) {
+  const file = files[index];
+  if (!file) return;
+  selectedIndex = index;
+  const result = file.result;
+  detailArea.style.display = "block";
+  detailArea.innerHTML = `
+    <div class="section-card">
+      <div class="section-card-header">
+        <h2>${escapeHTML(file.name)}</h2>
+        <span class="detail-meta">${escapeHTML(file.uploadedAt)} · ${formatSize(file.size)}</span>
+      </div>
+      ${result ? resultSummaryHTML(result) : ""}
+      <div class="detail-panel">
+        <div class="detail-header">
+          <span>原文预览</span>
+          <span class="detail-meta">${escapeHTML(file.ext.toUpperCase())}</span>
+        </div>
+        <pre>${escapeHTML(file.content)}</pre>
+      </div>
+    </div>
+  `;
+  detailArea.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function resultSummaryHTML(result) {
+  return `
+    <div class="result-grid">
+      <div class="result-item"><b>${result.sections_count}</b><span>Sections</span></div>
+      <div class="result-item"><b>${result.chunks_count}</b><span>Chunks</span></div>
+      <div class="result-item"><b>${result.vectors_count}</b><span>Vectors</span></div>
+      <div class="result-item"><b>${result.stored_count}</b><span>Stored</span></div>
+      <div class="result-item"><b>${result.dimension}</b><span>${escapeHTML(result.metric_type)}</span></div>
+    </div>
+    <div class="detail-panel">
+      <div class="detail-header">
+        <span>入库详情</span>
+        <span class="detail-meta">${escapeHTML(result.collection_name)}</span>
+      </div>
+      <pre>${escapeHTML(JSON.stringify(result, null, 2))}</pre>
+    </div>
+  `;
+}
+
+function updateStats() {
+  const stored = files.filter(file => file.status === "stored").length;
+  const latestResult = [...files].reverse().find(file => file.result)?.result;
+  document.getElementById("stat-files").textContent = files.length;
+  document.getElementById("stat-stored").textContent = stored;
+  document.getElementById("stat-chunks").textContent = latestResult ? latestResult.chunks_count : 0;
+  document.getElementById("stat-vectors").textContent = latestResult ? latestResult.vectors_count : 0;
+  document.getElementById("stored-badge").textContent = stored;
+  document.getElementById("header-meta").textContent = `${files.length} 个文件 · ${stored} 个已入库 · API ${API_BASE_URL}`;
+}
+
+function statusClass(status) {
+  return status === "stored" ? "ready" : status === "indexing" ? "indexing" : status === "failed" ? "failed" : "";
+}
+
+function statusLabel(status) {
+  return {
+    ready: "待入库",
+    indexing: "入库中",
+    stored: "已入库",
+    failed: "失败",
+  }[status] || "待入库";
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+}
+
+function escapeHTML(value) {
+  const div = document.createElement("div");
+  div.textContent = String(value);
+  return div.innerHTML;
+}
+
+function showToast(message) {
+  const container = document.getElementById("toast-container");
+  const toast = document.createElement("div");
+  toast.className = "toast";
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 2600);
+}
+
+function loadFiles() {
+  try {
+    const raw = localStorage.getItem(FILE_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.map(file => ({
+      name: String(file.name || ""),
+      ext: String(file.ext || "txt"),
+      size: Number(file.size || 0),
+      content: String(file.content || ""),
+      status: file.status === "indexing" ? "ready" : String(file.status || "ready"),
+      uploadedAt: String(file.uploadedAt || ""),
+      result: file.result || null,
+      error: String(file.error || ""),
+    })).filter(file => file.name && file.content);
+  } catch (_) {
+    return [];
+  }
+}
+
+function saveFiles() {
+  try {
+    localStorage.setItem(FILE_STORAGE_KEY, JSON.stringify(files));
+  } catch (_) {
+    showToast("浏览器本地存储空间不足，刷新后可能无法恢复文件");
+  }
+}
+
+renderFiles();
+updateStats();
+</script>
+</body>
+</html>
