@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import logging
+from time import perf_counter
 from typing import Any
 
 from backend.app.schemas.ingestion import EmbeddingConfig, MilvusStoreConfig
@@ -8,6 +11,9 @@ from backend.app.services.chunk_embedder import EmbeddingClient
 from backend.app.services.app_config import get_config_int, get_config_value, get_optional_config_int
 from backend.app.services.milvus_vector_store import MilvusVectorStore
 from backend.app.services.siliconflow_embeddings import SiliconFlowEmbeddingClient
+
+
+logger = logging.getLogger(__name__)
 
 
 def retrieve_query(
@@ -25,11 +31,31 @@ def retrieve_query(
     embedding_client = embedding_client or SiliconFlowEmbeddingClient(base_url=_siliconflow_embeddings_url())
 
     normalized_query = query.strip()
+    started_at = perf_counter()
     embedding_response = embedding_client.embed_texts([normalized_query], embedding_config)
     query_vector = [float(value) for value in embedding_response["embeddings"][0]]
     vector_store = MilvusVectorStore(client=milvus_client, config=store_config)
+    result = vector_store.search_chunks(query=normalized_query, query_vector=query_vector, top_k=top_k)
 
-    return vector_store.search_chunks(query=normalized_query, query_vector=query_vector, top_k=top_k)
+    if _retrieval_log_enabled():
+        logger.info(
+            json.dumps(
+                {
+                    "event": "retrieval.completed",
+                    "query": normalized_query,
+                    "top_k": top_k,
+                    "collection": result.collection_name,
+                    "elapsed_ms": round((perf_counter() - started_at) * 1000, 3),
+                    "total": result.total,
+                    "hits": [
+                        {"chunk_id": item.chunk_id, "score": round(item.score, 6)}
+                        for item in result.results
+                    ],
+                },
+                ensure_ascii=False,
+            )
+        )
+    return result
 
 
 def retrieve_query_payload(request) -> dict[str, Any]:
@@ -91,3 +117,9 @@ def _siliconflow_embeddings_url() -> str:
     if base_url.endswith("/embeddings"):
         return base_url
     return f"{base_url}/embeddings"
+
+
+def _retrieval_log_enabled() -> bool:
+    """默认记录安全的检索元数据，可通过环境变量关闭。"""
+
+    return get_config_value("RETRIEVAL_LOG_ENABLED", "true").lower() in {"1", "true", "yes", "on"}

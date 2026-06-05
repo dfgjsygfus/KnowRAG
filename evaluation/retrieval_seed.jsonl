@@ -1,0 +1,15 @@
+{"id":"chief-001","question":"ChiefArchitect 的职责定位是什么？","answerable":true,"expected_heading_keywords":["职责定位"]}
+{"id":"chief-002","question":"PLANNING_PROMPT 的作用是什么？","answerable":true,"expected_heading_keywords":["PLANNING_PROMPT"]}
+{"id":"chief-003","question":"REVISION_PROMPT 在什么情况下使用？","answerable":true,"expected_heading_keywords":["REVISION_PROMPT"]}
+{"id":"chief-004","question":"ChiefArchitect 的 process() 入口负责什么？","answerable":true,"expected_heading_keywords":["process() 入口"]}
+{"id":"chief-005","question":"_initial_planning() 的核心流程是什么？","answerable":true,"expected_heading_keywords":["_initial_planning() 核心流程"]}
+{"id":"chief-006","question":"系统如何处理 JSON 解析失败？","answerable":true,"expected_heading_keywords":["重试机制"]}
+{"id":"chief-007","question":"输出格式中 outline 表示什么？","answerable":true,"expected_heading_keywords":["outline（章节大纲）"]}
+{"id":"chief-008","question":"ChiefArchitect 如何选择模型？","answerable":true,"expected_heading_keywords":["模型选择策略"]}
+{"id":"chief-009","question":"SSE 事件流包含哪些阶段？","answerable":true,"expected_heading_keywords":["SSE 事件流"]}
+{"id":"chief-010","question":"什么是假设驱动研究？","answerable":true,"expected_heading_keywords":["假设驱动研究"]}
+{"id":"chief-code-001","question":"_convert_flat_to_outline() 函数用于做什么？","answerable":true,"expected_heading_keywords":["_convert_flat_to_outline() 格式转换"]}
+{"id":"chief-code-002","question":"research_step 事件开始时会发送什么？","answerable":true,"expected_heading_keywords":["research_step（开始）"]}
+{"id":"chief-code-003","question":"search_queries 字段如何进行补全？","answerable":true,"expected_heading_keywords":["字段补全"]}
+{"id":"outside-001","question":"KnowRAG 的数据库备份策略是什么？","answerable":false}
+{"id":"outside-002","question":"这个项目的年度预算是多少？","answerable":false}

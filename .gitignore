@@ -1,0 +1,54 @@
+# Python 缓存与测试产物
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# 本地环境变量，模板文件需要保留
+.env
+.env.*
+!.env.example
+
+# 本地数据库与运行时数据
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# 日志文件
+*.log
+*.out.log
+*.err.log
+evaluation/reports/
+
+# 前端依赖与构建产物
+node_modules/
+dist/
+build/
+.vite/
+desktop-pet/src-tauri/target/
+desktop-pet/src-tauri/target-msvc/
+desktop-pet/src-tauri/gen/schemas/
+desktop-pet/target-msvc/
+desktop-pet/*.exe
+
+# Milvus / Docker 本地挂载数据
+volumes/
+infra/milvus/volumes/
+
+# 系统和编辑器文件
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.claude/
+*.swp

@@ -1,4 +1,4 @@
-const API_BASE_URL = localStorage.getItem("knowrag-api-base") || "http://127.0.0.1:8000";
+const API_BASE_URL = localStorage.getItem("knowrag-api-base") || window.location.origin;
 
 const files = [];
 let selectedIndex = -1;
@@ -83,10 +83,8 @@ function handleFiles(fileList) {
             size: file.size,
           }),
         });
-        files.unshift(normalizeDocument(document));
-        renderFiles();
-        updateStats();
-        showToast(`已上传 ${file.name}`);
+        await loadDocuments();
+        showToast(document.deduplicated ? `${file.name} 已存在，未重复上传` : `已上传 ${file.name}`);
       } catch (error) {
         showToast(error.message || "上传失败");
       }

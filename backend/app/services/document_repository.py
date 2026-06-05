@@ -77,23 +77,50 @@ class DocumentRepository:
                     error_message TEXT NOT NULL DEFAULT '',
                     FOREIGN KEY(document_id) REFERENCES documents(id) ON DELETE CASCADE
                 );
+
+                CREATE INDEX IF NOT EXISTS idx_documents_content_hash
+                ON documents(content_hash);
                 """
             )
 
     def create_document(self, filename: str, source_path: str, content: str, size: int) -> DocumentRecord:
-        """保存上传文档，初始状态为 uploaded。"""
+        """保存上传文档；内容已存在时复用原记录。"""
+
+        document, _ = self.create_or_get_document(filename, source_path, content, size)
+        return document
+
+    def create_or_get_document(
+        self,
+        filename: str,
+        source_path: str,
+        content: str,
+        size: int,
+    ) -> tuple[DocumentRecord, bool]:
+        """按内容哈希查重；返回文档和是否复用了已有记录。"""
 
         content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
         with self._connect() as conn:
-            cursor = conn.execute(
-                """
-                INSERT INTO documents (filename, source_path, content, content_hash, size, status)
-                VALUES (?, ?, ?, ?, ?, 'uploaded')
-                """,
-                (filename, source_path, content, content_hash, size),
-            )
-            document_id = int(cursor.lastrowid)
-        return self.get_document(document_id)
+            # 即时写事务让并发上传按顺序完成“查询后创建”，避免竞争产生重复记录。
+            conn.execute("BEGIN IMMEDIATE")
+            existing = conn.execute(
+                "SELECT id FROM documents WHERE content_hash = ? ORDER BY id ASC LIMIT 1",
+                (content_hash,),
+            ).fetchone()
+            if existing:
+                document_id = int(existing["id"])
+                deduplicated = True
+            else:
+                cursor = conn.execute(
+                    """
+                    INSERT INTO documents (filename, source_path, content, content_hash, size, status)
+                    VALUES (?, ?, ?, ?, ?, 'uploaded')
+                    """,
+                    (filename, source_path, content, content_hash, size),
+                )
+                document_id = int(cursor.lastrowid)
+                deduplicated = False
+
+        return self.get_document(document_id), deduplicated
 
     def list_documents(self) -> list[DocumentRecord]:
         """按更新时间倒序返回文档列表。"""

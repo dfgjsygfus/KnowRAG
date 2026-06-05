@@ -515,8 +515,8 @@ html, body {
           </div>
           <p>拖拽文件到此处，或 <span class="browse-link">点击浏览</span></p>
           <p class="hint">支持 .md / .markdown / .txt，上传后可预览并写入 Milvus</p>
-          <input type="file" accept=".md,.markdown,.txt" id="file-input" hidden multiple>
         </div>
+        <input type="file" accept=".md,.markdown,.txt" id="file-input" hidden multiple>
         <div class="toolbar">
           <div class="search-box">
             <span class="search-icon">
@@ -554,7 +554,7 @@ html, body {
 </div>
 <div class="toast-container" id="toast-container"></div>
 
-<script src="app.js"></script>
+<script src="/admin/app.js"></script>
 <script type="application/json" id="legacy-disabled">
 const API_BASE_URL = localStorage.getItem("knowrag-api-base") || "http://127.0.0.1:8000";
 const FILE_STORAGE_KEY = "knowrag-upload-files";

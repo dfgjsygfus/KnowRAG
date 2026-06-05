@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 import re
 
@@ -213,8 +214,10 @@ def _overlap_units(units: list[str], overlap_tokens: int) -> list[str]:
 
 
 def _chunk_id(source_path: str, chunk_index: int) -> str:
-    """生成稳定、可读的 chunk 标识。"""
+    """生成稳定且跨目录不冲突的 chunk 标识。"""
 
     stem = Path(source_path).stem or "document"
     safe_stem = re.sub(r"\s+", "_", stem)
-    return f"{safe_stem}:{chunk_index:04d}"
+    normalized_path = str(source_path).replace("\\", "/").strip().lower()
+    path_digest = hashlib.sha256(normalized_path.encode("utf-8")).hexdigest()[:10]
+    return f"{safe_stem}-{path_digest}:{chunk_index:04d}"

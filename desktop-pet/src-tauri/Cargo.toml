@@ -1,0 +1,16 @@
+[package]
+name = "knowrag-desktop-pet"
+version = "0.1.0"
+description = "KnowRAG desktop pet"
+authors = ["KnowRAG"]
+edition = "2021"
+
+[lib]
+name = "knowrag_desktop_pet_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }

@@ -66,6 +66,18 @@ class MilvusVectorStore:
             ids=[point["id"] for point in points],
         )
 
+    def delete_chunk_ids(self, chunk_ids: list[str]) -> int:
+        """按向量主键删除 chunk；空列表直接返回，避免无意义请求。"""
+
+        unique_ids = list(dict.fromkeys(chunk_id for chunk_id in chunk_ids if chunk_id))
+        if not unique_ids:
+            return 0
+        if not self.client.has_collection(self.config.collection_name):
+            return 0
+
+        self.client.delete(collection_name=self.config.collection_name, ids=unique_ids)
+        return len(unique_ids)
+
     def search_chunks(self, query: str, query_vector: list[float], top_k: int = 5) -> RetrievalResult:
         """按 query 向量检索 Milvus 中最相近的 chunk。"""
 
@@ -144,9 +156,10 @@ def _search_hit_to_result(hit: dict[str, Any]) -> RetrievalSearchResult:
     """把 Milvus search 的命中行整理为前端检索结果。"""
 
     entity = hit.get("entity") or {}
+    raw_score = float(hit.get("distance", hit.get("score", 0.0)) or 0.0)
     return RetrievalSearchResult(
         chunk_id=str(entity.get("chunk_id") or hit.get("id") or ""),
-        score=float(hit.get("distance", hit.get("score", 0.0)) or 0.0),
+        score=raw_score,
         document_title=str(entity.get("document_title") or ""),
         source_path=str(entity.get("source_path") or ""),
         heading_path=_parse_heading_path(entity),
