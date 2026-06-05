@@ -28,7 +28,6 @@ data/
 *.log
 *.out.log
 *.err.log
-evaluation/reports/
 
 # 前端依赖与构建产物
 node_modules/
@@ -41,6 +40,9 @@ desktop-pet/src-tauri/gen/schemas/
 desktop-pet/target-msvc/
 desktop-pet/*.exe
 
+# 桌宠 assets — 使用 pet.webp 替代 pet.png（仅保留旧 png 不提交）
+desktop-pet/src/assets/pet.png
+
 # Milvus / Docker 本地挂载数据
 volumes/
 infra/milvus/volumes/
@@ -51,4 +53,5 @@ Thumbs.db
 .idea/
 .vscode/
 .claude/
+evaluation/reports/
 *.swp
