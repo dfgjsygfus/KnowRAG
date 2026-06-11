@@ -1,15 +1,13 @@
-{"id":"chief-001","question":"ChiefArchitect 的职责定位是什么？","answerable":true,"expected_heading_keywords":["职责定位"]}
-{"id":"chief-002","question":"PLANNING_PROMPT 的作用是什么？","answerable":true,"expected_heading_keywords":["PLANNING_PROMPT"]}
-{"id":"chief-003","question":"REVISION_PROMPT 在什么情况下使用？","answerable":true,"expected_heading_keywords":["REVISION_PROMPT"]}
-{"id":"chief-004","question":"ChiefArchitect 的 process() 入口负责什么？","answerable":true,"expected_heading_keywords":["process() 入口"]}
-{"id":"chief-005","question":"_initial_planning() 的核心流程是什么？","answerable":true,"expected_heading_keywords":["_initial_planning() 核心流程"]}
-{"id":"chief-006","question":"系统如何处理 JSON 解析失败？","answerable":true,"expected_heading_keywords":["重试机制"]}
-{"id":"chief-007","question":"输出格式中 outline 表示什么？","answerable":true,"expected_heading_keywords":["outline（章节大纲）"]}
-{"id":"chief-008","question":"ChiefArchitect 如何选择模型？","answerable":true,"expected_heading_keywords":["模型选择策略"]}
-{"id":"chief-009","question":"SSE 事件流包含哪些阶段？","answerable":true,"expected_heading_keywords":["SSE 事件流"]}
-{"id":"chief-010","question":"什么是假设驱动研究？","answerable":true,"expected_heading_keywords":["假设驱动研究"]}
-{"id":"chief-code-001","question":"_convert_flat_to_outline() 函数用于做什么？","answerable":true,"expected_heading_keywords":["_convert_flat_to_outline() 格式转换"]}
-{"id":"chief-code-002","question":"research_step 事件开始时会发送什么？","answerable":true,"expected_heading_keywords":["research_step（开始）"]}
-{"id":"chief-code-003","question":"search_queries 字段如何进行补全？","answerable":true,"expected_heading_keywords":["字段补全"]}
-{"id":"outside-001","question":"KnowRAG 的数据库备份策略是什么？","answerable":false}
-{"id":"outside-002","question":"这个项目的年度预算是多少？","answerable":false}
+{"id":"qa-001","question":"面试中项目讲成流水账缺量化会有什么后果","answerable":true,"expected_source_paths":["frontend-upload/面试准备.md"],"expected_heading_keywords":["雷区","凉经"]}
+{"id":"qa-002","question":"STAR-R框架适合用在什么场景","answerable":true,"expected_source_paths":["frontend-upload/面试准备.md"],"expected_heading_keywords":["STAR-R","面试项目"]}
+{"id":"qa-003","question":"面试准备中自我介绍要包含哪些关键要素","answerable":true,"expected_source_paths":["frontend-upload/面试准备.md"],"expected_heading_keywords":["自我介绍","核心"]}
+{"id":"qa-004","question":"面试中为什么转专业被问到怎么回答","answerable":true,"expected_source_paths":["frontend-upload/面试准备.md"],"expected_heading_keywords":["转专业"]}
+{"id":"qa-005","question":"软实力场景题应该使用什么答题模板","answerable":true,"expected_source_paths":["frontend-upload/面试准备.md"],"expected_heading_keywords":["软实力场景题模板"]}
+{"id":"qa-006","question":"开场前5分钟面试准备Checklist有哪些内容","answerable":true,"expected_source_paths":["frontend-upload/面试准备.md"],"expected_heading_keywords":["Checklist","开场"]}
+{"id":"proj-001","question":"LangGraph在项目中是如何用作工作流引擎的","answerable":true,"expected_source_paths":["frontend-upload/1.1 项目定位与核心能力.md"],"expected_heading_keywords":["LangGraph","工作流"]}
+{"id":"proj-002","question":"项目的双模式信息检索是怎么实现的","answerable":true,"expected_source_paths":["frontend-upload/1.1 项目定位与核心能力.md"],"expected_heading_keywords":["双模式","信息检索"]}
+{"id":"proj-003","question":"项目的安全沙箱执行机制如何工作","answerable":true,"expected_source_paths":["frontend-upload/1.1 项目定位与核心能力.md"],"expected_heading_keywords":["沙箱","执行"]}
+{"id":"proj-004","question":"项目的信源追溯Source Tracing是如何设计的","answerable":true,"expected_source_paths":["frontend-upload/1.1 项目定位与核心能力.md"],"expected_heading_keywords":["信源追溯","Source Tracing"]}
+{"id":"proj-005","question":"项目的核心能力有哪些","answerable":true,"expected_source_paths":["frontend-upload/1.1 项目定位与核心能力.md"],"expected_heading_keywords":["核心能力拆解"]}
+{"id":"outside-001","question":"如何做红烧肉","answerable":false}
+{"id":"outside-002","question":"2024年奥运会在哪里举办","answerable":false}

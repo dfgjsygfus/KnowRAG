@@ -6,26 +6,27 @@
 <title>KnowRAG Admin Console</title>
 <style>
 :root {
-  --page-bg: #f5f5f7;
-  --surface: #ffffff;
-  --fg: #1d1d1f;
-  --fg-secondary: #6e6e73;
-  --border-light: #e5e5ea;
-  --accent: #0071e3;
-  --accent-hover: #0077ed;
-  --accent-pressed: #0066cc;
-  --success: #34c759;
-  --warning: #ff9f0a;
-  --danger: #ff3b30;
-  --sidebar-bg: rgba(245, 245, 247, 0.72);
-  --sidebar-active: rgba(0, 0, 0, 0.06);
-  --sidebar-hover: rgba(0, 0, 0, 0.04);
+  --page-bg: #e8ddd0;
+  --surface: rgba(255, 251, 247, 0.94);
+  --fg: #4a3728;
+  --fg-secondary: #8b7355;
+  --border-light: rgba(210, 180, 150, 0.35);
+  --accent: #e8967a;
+  --accent-hover: #d8806e;
+  --accent-pressed: #c87060;
+  --accent-glow: rgba(232, 150, 122, 0.18);
+  --success: #7eb87e;
+  --warning: #e0a860;
+  --danger: #d47060;
+  --sidebar-bg: rgba(240, 232, 220, 0.62);
+  --sidebar-active: rgba(232, 150, 122, 0.16);
+  --sidebar-hover: rgba(180, 140, 100, 0.09);
   --radius: 12px;
   --radius-lg: 18px;
   --radius-xl: 24px;
   --radius-full: 980px;
-  --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 2px 8px rgba(0,0,0,0.04);
-  --shadow-md: 0 2px 6px rgba(0,0,0,0.05), 0 4px 16px rgba(0,0,0,0.05);
+  --shadow: 0 2px 12px rgba(140, 100, 60, 0.10);
+  --shadow-md: 0 4px 20px rgba(140, 100, 60, 0.14);
   --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
   --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
   --font-mono: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, monospace;
@@ -36,20 +37,33 @@ html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: var(--page-bg);
+  background:
+    radial-gradient(ellipse at 30% 20%, #f5ede0 0%, transparent 60%),
+    radial-gradient(ellipse at 70% 60%, #fdf3e8 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, #efe3d4 0%, transparent 55%),
+    linear-gradient(160deg, #e8ddd0 0%, #f0e8dc 30%, #e2d5c4 70%, #dbcebe 100%);
   color: var(--fg);
   font: 14px/1.47 var(--font-body);
   -webkit-font-smoothing: antialiased;
 }
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  opacity: 0.45;
+  pointer-events: none;
+  z-index: 0;
+}
 
-.app-shell { display: flex; height: 100vh; overflow: hidden; }
+.app-shell { display: flex; height: 100vh; overflow: hidden; position: relative; z-index: 1; }
 .sidebar {
   width: 256px;
   flex-shrink: 0;
   background: var(--sidebar-bg);
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
-  border-right: 1px solid rgba(0,0,0,0.08);
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  border-right: 1px solid rgba(210, 180, 150, 0.3);
   display: flex;
   flex-direction: column;
   user-select: none;
@@ -57,14 +71,16 @@ html, body {
 .sidebar-header { padding: 28px 24px 20px; }
 .logo-area { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
 .logo-icon {
-  width: 34px;
-  height: 34px;
-  background: var(--fg);
-  border-radius: 9px;
+  width: 36px;
+  height: 36px;
+  background: var(--accent);
+  border-radius: 10px;
   display: grid;
   place-items: center;
   color: #fff;
-  font: 600 15px var(--font-display);
+  font-size: 20px;
+  line-height: 1;
+  box-shadow: 0 2px 8px rgba(232, 150, 122, 0.35);
 }
 .logo-label { font: 600 15px/1.2 var(--font-display); color: var(--fg); }
 .logo-sub { font: 12px/1.3 var(--font-body); color: var(--fg-secondary); margin-left: 44px; }
@@ -83,21 +99,22 @@ html, body {
   width: 100%;
   padding: 9px 12px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   background: transparent;
   color: var(--fg);
   font: 13.5px/1.3 var(--font-body);
   cursor: pointer;
   text-align: left;
+  transition: all 0.18s ease;
 }
-.sidebar-nav button:hover { background: var(--sidebar-hover); }
-.sidebar-nav button.active { background: var(--sidebar-active); font-weight: 590; }
+.sidebar-nav button:hover { background: var(--sidebar-hover); transform: translateX(2px); }
+.sidebar-nav button.active { background: var(--sidebar-active); font-weight: 590; color: var(--accent); }
 .nav-icon { width: 20px; height: 20px; display: grid; place-items: center; color: var(--fg-secondary); }
 .sidebar-nav button.active .nav-icon { color: var(--accent); }
 .nav-badge {
   margin-left: auto;
-  background: rgba(0,0,0,0.08);
-  color: var(--fg-secondary);
+  background: rgba(232, 150, 122, 0.15);
+  color: var(--accent);
   font: 590 11px/1 var(--font-body);
   padding: 3px 8px;
   border-radius: 999px;
@@ -106,20 +123,21 @@ html, body {
 }
 .sidebar-footer {
   padding: 16px 24px;
-  border-top: 1px solid rgba(0,0,0,0.06);
+  border-top: 1px solid rgba(210, 180, 150, 0.25);
   display: flex;
   align-items: center;
   gap: 10px;
 }
 .avatar {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
-  background: #e5e5ea;
+  background: rgba(232, 150, 122, 0.18);
   display: grid;
   place-items: center;
-  font: 600 11px var(--font-body);
-  color: var(--fg-secondary);
+  font-size: 16px;
+  line-height: 1;
+  color: var(--accent);
 }
 .user-info { font: 12px/1.3 var(--font-body); }
 .user-info span { display: block; font-size: 11px; color: var(--fg-secondary); }
@@ -132,7 +150,7 @@ html, body {
   justify-content: space-between;
   flex-shrink: 0;
 }
-.main-header h1 { font: 600 28px/1.1 var(--font-display); color: var(--fg); }
+.main-header h1 { font: 600 26px/1.15 var(--font-display); color: var(--fg); letter-spacing: -0.01em; }
 .header-meta { font: 13px/1.3 var(--font-body); color: var(--fg-secondary); margin-top: 4px; }
 .main-body { flex: 1; overflow-y: auto; padding: 0 36px 36px; }
 
@@ -147,9 +165,15 @@ html, body {
   border-radius: var(--radius-lg);
   padding: 20px 24px;
   box-shadow: var(--shadow);
+  border: 1px solid rgba(210, 180, 150, 0.2);
   display: flex;
   align-items: center;
   gap: 16px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 22px rgba(140, 100, 60, 0.16);
 }
 .stat-icon {
   width: 44px;
@@ -157,7 +181,7 @@ html, body {
   border-radius: 12px;
   display: grid;
   place-items: center;
-  background: #f5f5f7;
+  background: rgba(232, 150, 122, 0.1);
   color: var(--accent);
 }
 .stat-value { font: 600 28px/1.1 var(--font-display); color: var(--fg); }
@@ -168,6 +192,7 @@ html, body {
   background: var(--surface);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow);
+  border: 1px solid rgba(210, 180, 150, 0.22);
   overflow: hidden;
   margin-bottom: 24px;
 }
@@ -177,33 +202,37 @@ html, body {
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--border-light);
+  background: rgba(250, 245, 240, 0.4);
 }
 .section-card-header h2 { font: 600 16px/1.2 var(--font-display); }
 
 .upload-zone {
   margin: 24px;
-  border: 2px dashed #c7c7cc;
+  border: 2px dashed rgba(210, 180, 150, 0.45);
   border-radius: var(--radius-lg);
   padding: 48px 40px;
   text-align: center;
   cursor: pointer;
-  transition: all 0.2s ease;
-  background: #fafafa;
+  transition: all 0.25s ease;
+  background: rgba(250, 245, 240, 0.4);
 }
 .upload-zone:hover, .upload-zone.drag-over {
   border-color: var(--accent);
-  background: #f2f7fd;
+  background: rgba(232, 150, 122, 0.08);
+  transform: scale(1.008);
 }
 .upload-icon-circle {
   width: 56px;
   height: 56px;
   margin: 0 auto 16px;
-  background: #f5f5f7;
+  background: rgba(232, 150, 122, 0.12);
   border-radius: 50%;
   display: grid;
   place-items: center;
   color: var(--accent);
+  transition: transform 0.25s ease;
 }
+.upload-zone:hover .upload-icon-circle { transform: translateY(-3px); }
 .upload-zone p { font: 15px/1.4 var(--font-body); color: var(--fg); }
 .browse-link { color: var(--accent); font-weight: 500; }
 .hint { font: 12px/1.4 var(--font-body); color: var(--fg-secondary); margin-top: 6px; }
@@ -212,20 +241,24 @@ html, body {
 .spacer { flex: 1; }
 .search-box { position: relative; display: inline-flex; align-items: center; }
 .search-icon { position: absolute; left: 14px; pointer-events: none; color: #8e8e93; }
-.search-input {
-  width: 260px;
-  padding: 10px 16px 10px 38px;
-  border: 1px solid #d2d2d7;
+.search-input,
+.retrieval-input {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid rgba(210, 180, 150, 0.4);
   border-radius: 10px;
-  background: #f5f5f7;
+  background: rgba(250, 245, 240, 0.7);
   color: var(--fg);
   font: 14px/1.4 var(--font-body);
   outline: none;
+  transition: all 0.2s ease;
 }
-.search-input:focus {
+.search-input { width: 260px; padding-left: 38px; }
+.search-input:focus,
+.retrieval-input:focus {
   border-color: var(--accent);
-  background: #fff;
-  box-shadow: 0 0 0 4px rgba(0,113,227,0.1);
+  background: rgba(255, 251, 247, 0.95);
+  box-shadow: 0 0 0 4px var(--accent-glow);
 }
 
 .btn {
@@ -236,22 +269,23 @@ html, body {
   padding: 9px 18px;
   border: 0;
   border-radius: var(--radius-full);
-  background: #f5f5f7;
+  background: rgba(240, 232, 220, 0.7);
   color: var(--fg);
   font: 590 13px/1.3 var(--font-body);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.18s ease;
   white-space: nowrap;
 }
-.btn:hover { background: #e8e8ed; }
-.btn:disabled { cursor: not-allowed; opacity: 0.5; }
-.btn-primary { background: var(--accent); color: #fff; }
-.btn-primary:hover { background: var(--accent-hover); }
-.btn-primary:active { background: var(--accent-pressed); transform: scale(0.97); }
-.btn-danger { background: #fff; color: var(--danger); }
-.btn-danger:hover { background: #fff0ef; }
+.btn:hover { background: rgba(220, 200, 180, 0.5); transform: translateY(-1px); }
+.btn:active { transform: scale(0.97); }
+.btn:disabled { cursor: not-allowed; opacity: 0.45; }
+.btn-primary { background: var(--accent); color: #fff; box-shadow: 0 2px 8px rgba(232, 150, 122, 0.35); }
+.btn-primary:hover { background: var(--accent-hover); box-shadow: 0 4px 14px rgba(232, 150, 122, 0.45); }
+.btn-primary:active { background: var(--accent-pressed); transform: scale(0.96); }
+.btn-danger { background: rgba(255, 240, 238, 0.8); color: var(--danger); }
+.btn-danger:hover { background: rgba(240, 210, 200, 0.6); }
 .btn-ghost { background: transparent; color: var(--fg-secondary); }
-.btn-ghost:hover { background: rgba(0,0,0,0.05); color: var(--fg); }
+.btn-ghost:hover { background: rgba(180, 140, 100, 0.08); color: var(--fg); }
 .btn-sm { padding: 5px 13px; font-size: 12px; }
 
 .data-table { width: 100%; border-collapse: collapse; font: 14px/1.4 var(--font-body); }
@@ -262,21 +296,23 @@ html, body {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--fg-secondary);
-  border-bottom: 1px solid var(--border-light);
+  border-bottom: 2px solid rgba(210, 180, 150, 0.3);
+  background: rgba(250, 245, 240, 0.5);
 }
 .data-table td {
   padding: 12px 24px;
-  border-bottom: 1px solid #f5f5f7;
+  border-bottom: 1px solid rgba(210, 180, 150, 0.18);
   color: var(--fg);
   vertical-align: middle;
 }
-.data-table tbody tr:hover td { background: #fafafa; }
+.data-table tbody tr:hover td { background: rgba(250, 245, 240, 0.55); }
+.data-table tbody tr { transition: background 0.15s ease; }
 .cell-name { display: flex; align-items: center; gap: 12px; font-weight: 500; }
 .file-icon {
   width: 34px;
   height: 34px;
   border-radius: 8px;
-  background: #f5f5f7;
+  background: rgba(232, 150, 122, 0.1);
   display: grid;
   place-items: center;
   color: var(--accent);
@@ -292,26 +328,22 @@ html, body {
   padding: 4px 10px;
   border-radius: 999px;
   font: 590 12px/1.3 var(--font-body);
-  background: #f5f5f7;
+  background: rgba(240, 232, 220, 0.6);
   color: var(--fg-secondary);
 }
-.status-pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #c7c7cc; }
+.status-pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #c4b09a; }
+.status-pill.ready { background: rgba(126, 184, 126, 0.15); color: #5a8a5a; }
 .status-pill.ready::before { background: var(--success); }
+.status-pill.indexing { background: rgba(224, 168, 96, 0.15); color: #b08840; }
 .status-pill.indexing::before { background: var(--warning); }
+.status-pill.failed { background: rgba(212, 112, 96, 0.12); color: #b05848; }
 .status-pill.failed::before { background: var(--danger); }
 
-.type-tag {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 6px;
-  font: 590 11px/1.3 var(--font-body);
-  background: #f5f5f7;
-  color: var(--fg-secondary);
-}
 .detail-panel {
   margin: 24px;
-  background: #fafafa;
+  background: rgba(250, 245, 240, 0.55);
   border-radius: var(--radius-lg);
+  border: 1px solid rgba(210, 180, 150, 0.2);
   overflow: hidden;
 }
 .detail-header {
@@ -319,7 +351,7 @@ html, body {
   align-items: center;
   justify-content: space-between;
   padding: 14px 20px;
-  background: #f5f5f7;
+  background: rgba(240, 232, 220, 0.5);
   font: 590 13px/1.3 var(--font-body);
 }
 .detail-meta { font: 11px var(--font-mono); color: var(--fg-secondary); }
@@ -332,6 +364,7 @@ html, body {
   max-height: 440px;
   overflow-y: auto;
   color: var(--fg);
+  background: rgba(255, 251, 247, 0.5);
 }
 .result-grid {
   display: grid;
@@ -346,21 +379,6 @@ html, body {
   padding: 20px 24px;
   align-items: center;
 }
-.retrieval-input {
-  width: 100%;
-  padding: 11px 14px;
-  border: 1px solid #d2d2d7;
-  border-radius: 10px;
-  background: #f5f5f7;
-  color: var(--fg);
-  font: 14px/1.4 var(--font-body);
-  outline: none;
-}
-.retrieval-input:focus {
-  border-color: var(--accent);
-  background: #fff;
-  box-shadow: 0 0 0 4px rgba(0,113,227,0.1);
-}
 .retrieval-results {
   display: grid;
   gap: 12px;
@@ -368,17 +386,19 @@ html, body {
 }
 .retrieval-result {
   border: 1px solid var(--border-light);
-  border-radius: 12px;
-  background: #fff;
+  border-radius: 14px;
+  background: rgba(255, 251, 247, 0.7);
   overflow: hidden;
+  transition: box-shadow 0.2s ease;
 }
+.retrieval-result:hover { box-shadow: 0 4px 16px rgba(140, 100, 60, 0.12); }
 .retrieval-result-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 12px 16px;
-  background: #fafafa;
+  background: rgba(250, 245, 240, 0.5);
   border-bottom: 1px solid var(--border-light);
 }
 .retrieval-result-title { font: 590 13px/1.35 var(--font-body); }
@@ -389,25 +409,59 @@ html, body {
   white-space: pre-wrap;
   color: var(--fg);
 }
-.result-item {
-  background: #fff;
-  border: 1px solid var(--border-light);
-  border-radius: 12px;
-  padding: 12px;
+.settings-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  padding: 24px;
 }
-.result-item b { display: block; font: 600 18px/1.2 var(--font-display); }
+.settings-field { display: grid; gap: 7px; }
+.settings-field label {
+  font: 590 12px/1.3 var(--font-body);
+  color: var(--fg-secondary);
+}
+.settings-field select.retrieval-input { cursor: pointer; }
+.settings-field.full { grid-column: 1 / -1; }
+.settings-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 4px;
+}
+.settings-note {
+  margin-right: auto;
+  color: var(--fg-secondary);
+  font: 12px/1.5 var(--font-body);
+}
+.result-item {
+  background: rgba(255, 251, 247, 0.7);
+  border: 1px solid rgba(210, 180, 150, 0.25);
+  border-radius: 14px;
+  padding: 12px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.result-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(140, 100, 60, 0.12);
+}
+.result-item b { display: block; font: 600 18px/1.2 var(--font-display); color: var(--accent); }
 .result-item span { font: 12px/1.3 var(--font-body); color: var(--fg-secondary); }
 .empty-state { text-align: center; padding: 64px 24px; color: var(--fg-secondary); }
 .empty-icon-circle {
-  width: 68px;
-  height: 68px;
+  width: 72px;
+  height: 72px;
   margin: 0 auto 20px;
-  background: #f5f5f7;
+  background: rgba(232, 150, 122, 0.1);
   border-radius: 50%;
   display: grid;
   place-items: center;
-  color: var(--fg-secondary);
+  color: var(--accent);
+  font-size: 32px;
+  transition: transform 0.3s ease;
 }
+.empty-state:hover .empty-icon-circle { transform: scale(1.08); }
 .empty-state h3 { font: 600 16px/1.3 var(--font-display); color: var(--fg); margin-bottom: 6px; }
 .toast-container {
   position: fixed;
@@ -419,22 +473,38 @@ html, body {
   gap: 8px;
 }
 .toast {
-  background: var(--surface);
+  background: rgba(255, 251, 247, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   color: var(--fg);
   padding: 14px 20px;
   border-radius: 14px;
   font: 14px/1.3 var(--font-body);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.04);
+  border: 1px solid rgba(210, 180, 150, 0.35);
+  box-shadow: 0 8px 32px rgba(140, 100, 60, 0.18);
+  animation: toastIn 0.3s ease-out;
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
 }
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 10px; }
+::-webkit-scrollbar-thumb { background: rgba(180, 140, 100, 0.25); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(180, 140, 100, 0.4); }
 
 @media (max-width: 960px) {
   .sidebar { width: 220px; }
   .main-header, .main-body { padding-left: 22px; padding-right: 22px; }
   .stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .result-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .retrieval-form { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 780px) {
+  .data-table { display: block; overflow-x: auto; }
+  .retrieval-form { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .settings-form { grid-template-columns: minmax(0, 1fr); }
+  .retrieval-results { padding: 0 16px 16px; }
 }
 </style>
 </head>
@@ -443,7 +513,7 @@ html, body {
   <aside class="sidebar">
     <div class="sidebar-header">
       <div class="logo-area">
-        <div class="logo-icon">R</div>
+        <div class="logo-icon">🐶</div>
         <span class="logo-label">KnowRAG</span>
       </div>
       <div class="logo-sub">Admin Console</div>
@@ -464,9 +534,15 @@ html, body {
         Milvus
         <span class="nav-badge" id="stored-badge">0</span>
       </button>
+      <button id="nav-settings">
+        <span class="nav-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.34 1.88l.04.04a2 2 0 01-2.83 2.83l-.04-.04A1.7 1.7 0 0015 19.4a1.7 1.7 0 00-1 .6 1.7 1.7 0 00-.4 1.1V21a2 2 0 01-4 0v-.06a1.7 1.7 0 00-.4-1.1 1.7 1.7 0 00-1-.6 1.7 1.7 0 00-1.88.34l-.04.04a2 2 0 01-2.83-2.83l.04-.04A1.7 1.7 0 004.6 15a1.7 1.7 0 00-.6-1 1.7 1.7 0 00-1.1-.4H3a2 2 0 010-4h.06a1.7 1.7 0 001.1-.4 1.7 1.7 0 00.6-1 1.7 1.7 0 00-.34-1.88l-.04-.04a2 2 0 012.83-2.83l.04.04A1.7 1.7 0 009 4.6a1.7 1.7 0 001-.6 1.7 1.7 0 00.4-1.1V3a2 2 0 014 0v.06a1.7 1.7 0 00.4 1.1 1.7 1.7 0 001 .6 1.7 1.7 0 001.88-.34l.04-.04a2 2 0 012.83 2.83l-.04.04A1.7 1.7 0 0019.4 9c.23.37.57.7 1 .9.33.16.7.24 1.1.24H21a2 2 0 010 4h-.06a1.7 1.7 0 00-1.1.4 1.7 1.7 0 00-.44.46z"/></svg>
+        </span>
+        模型设置
+      </button>
     </nav>
     <div class="sidebar-footer">
-      <div class="avatar">A</div>
+      <div class="avatar">🐶</div>
       <div class="user-info">管理员<span>本地离线入库</span></div>
     </div>
   </aside>
@@ -513,7 +589,7 @@ html, body {
           <div class="upload-icon-circle">
             <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
           </div>
-          <p>拖拽文件到此处，或 <span class="browse-link">点击浏览</span></p>
+          <p>拖拽文件到此处，或 <span class="browse-link">点击浏览</span> 🐶</p>
           <p class="hint">支持 .md / .markdown / .txt，上传后可预览并写入 Milvus</p>
         </div>
         <input type="file" accept=".md,.markdown,.txt" id="file-input" hidden multiple>
@@ -540,11 +616,9 @@ html, body {
           <tbody id="file-table-body"></tbody>
         </table>
         <div class="empty-state" id="empty-state">
-          <div class="empty-icon-circle">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
-          </div>
-          <h3>还没有文档</h3>
-          <p>上传一个 Markdown 文件，开始构建你的本地知识库。</p>
+          <div class="empty-icon-circle">🐾</div>
+          <h3>还没有文档 🐾</h3>
+          <p>汪！上传一个 Markdown 文件，旺财帮你记住它们。</p>
         </div>
       </div>
 
@@ -555,306 +629,6 @@ html, body {
 <div class="toast-container" id="toast-container"></div>
 
 <script src="/admin/app.js"></script>
-<script type="application/json" id="legacy-disabled">
-const API_BASE_URL = localStorage.getItem("knowrag-api-base") || "http://127.0.0.1:8000";
-const FILE_STORAGE_KEY = "knowrag-upload-files";
-const files = loadFiles();
-let selectedIndex = -1;
-
-const uploadZone = document.getElementById("upload-zone");
-const fileInput = document.getElementById("file-input");
-const fileTableBody = document.getElementById("file-table-body");
-const emptyState = document.getElementById("empty-state");
-const fileSearch = document.getElementById("file-search");
-const detailArea = document.getElementById("detail-area");
-
-uploadZone.addEventListener("click", () => fileInput.click());
-uploadZone.addEventListener("dragover", event => {
-  event.preventDefault();
-  uploadZone.classList.add("drag-over");
-});
-uploadZone.addEventListener("dragleave", () => uploadZone.classList.remove("drag-over"));
-uploadZone.addEventListener("drop", event => {
-  event.preventDefault();
-  uploadZone.classList.remove("drag-over");
-  handleFiles(event.dataTransfer.files);
-});
-fileInput.addEventListener("change", event => {
-  handleFiles(event.target.files);
-  fileInput.value = "";
-});
-fileSearch.addEventListener("input", renderFiles);
-document.getElementById("btn-clear").addEventListener("click", () => {
-  files.splice(0, files.length);
-  saveFiles();
-  selectedIndex = -1;
-  detailArea.style.display = "none";
-  renderFiles();
-  updateStats();
-});
-document.getElementById("btn-index-all").addEventListener("click", async () => {
-  for (let index = 0; index < files.length; index++) {
-    if (files[index].status !== "ready") continue;
-    await indexFile(index);
-  }
-});
-
-fileTableBody.addEventListener("click", event => {
-  const preview = event.target.closest("[data-preview]");
-  const indexButton = event.target.closest("[data-index]");
-  const remove = event.target.closest("[data-remove]");
-
-  if (preview) {
-    showDetail(Number(preview.dataset.preview));
-    return;
-  }
-  if (indexButton) {
-    indexFile(Number(indexButton.dataset.index));
-    return;
-  }
-  if (remove) {
-    const index = Number(remove.dataset.remove);
-    files.splice(index, 1);
-    if (selectedIndex === index) {
-      selectedIndex = -1;
-      detailArea.style.display = "none";
-    }
-    saveFiles();
-    renderFiles();
-    updateStats();
-  }
-});
-
-function handleFiles(fileList) {
-  Array.from(fileList).forEach(file => {
-    const ext = file.name.split(".").pop().toLowerCase();
-    if (!["md", "markdown", "txt"].includes(ext)) {
-      showToast("仅支持 .md / .markdown / .txt 文件");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      files.push({
-        name: file.name,
-        ext,
-        size: file.size,
-        content: String(reader.result || ""),
-        status: "ready",
-        uploadedAt: new Date().toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }),
-        result: null,
-        error: "",
-      });
-      saveFiles();
-      renderFiles();
-      updateStats();
-      showToast(`已读取 ${file.name}`);
-    };
-    reader.readAsText(file, "utf-8");
-  });
-}
-
-async function indexFile(index) {
-  const file = files[index];
-  if (!file) return;
-
-  file.status = "indexing";
-  file.error = "";
-  saveFiles();
-  renderFiles();
-  updateStats();
-
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/ingestion/index`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        source_path: `frontend-upload/${file.name}`,
-        markdown: file.content,
-        preserve_code_blocks: true,
-      }),
-    });
-    const body = await response.json();
-    if (!response.ok) {
-      throw new Error(body.detail || `HTTP ${response.status}`);
-    }
-    file.status = "stored";
-    file.result = body;
-    saveFiles();
-    selectedIndex = index;
-    showDetail(index);
-    showToast(`已入库 ${file.name}`);
-  } catch (error) {
-    file.status = "failed";
-    file.error = error.message || "入库失败";
-    saveFiles();
-    showToast(file.error);
-  } finally {
-    renderFiles();
-    updateStats();
-  }
-}
-
-function renderFiles() {
-  const keyword = fileSearch.value.trim().toLowerCase();
-  const filtered = files
-    .map((file, index) => ({ file, index }))
-    .filter(({ file }) => !keyword || file.name.toLowerCase().includes(keyword) || file.content.toLowerCase().includes(keyword));
-
-  emptyState.style.display = files.length ? "none" : "block";
-  fileTableBody.innerHTML = "";
-
-  filtered.forEach(({ file, index }) => {
-    const resultText = file.result
-      ? `${file.result.stored_count}/${file.result.vectors_count} · ${file.result.collection_name}`
-      : file.error || "未入库";
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>
-        <div class="cell-name">
-          <div class="file-icon">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
-          </div>
-          <span>${escapeHTML(file.name)}</span>
-        </div>
-      </td>
-      <td><span class="status-pill ${statusClass(file.status)}">${statusLabel(file.status)}</span></td>
-      <td class="mono">${formatSize(file.size)}</td>
-      <td class="mono">${escapeHTML(resultText)}</td>
-      <td>
-        <div class="cell-actions">
-          <button class="btn btn-sm btn-ghost" data-preview="${index}">预览</button>
-          <button class="btn btn-sm btn-primary" data-index="${index}" ${file.status === "indexing" ? "disabled" : ""}>入库</button>
-          <button class="btn btn-sm btn-danger" data-remove="${index}">删除</button>
-        </div>
-      </td>
-    `;
-    fileTableBody.appendChild(row);
-  });
-
-  document.getElementById("file-badge").textContent = files.length;
-  document.getElementById("btn-index-all").disabled = !files.some(file => file.status === "ready");
-}
-
-function showDetail(index) {
-  const file = files[index];
-  if (!file) return;
-  selectedIndex = index;
-  const result = file.result;
-  detailArea.style.display = "block";
-  detailArea.innerHTML = `
-    <div class="section-card">
-      <div class="section-card-header">
-        <h2>${escapeHTML(file.name)}</h2>
-        <span class="detail-meta">${escapeHTML(file.uploadedAt)} · ${formatSize(file.size)}</span>
-      </div>
-      ${result ? resultSummaryHTML(result) : ""}
-      <div class="detail-panel">
-        <div class="detail-header">
-          <span>原文预览</span>
-          <span class="detail-meta">${escapeHTML(file.ext.toUpperCase())}</span>
-        </div>
-        <pre>${escapeHTML(file.content)}</pre>
-      </div>
-    </div>
-  `;
-  detailArea.scrollIntoView({ behavior: "smooth", block: "nearest" });
-}
-
-function resultSummaryHTML(result) {
-  return `
-    <div class="result-grid">
-      <div class="result-item"><b>${result.sections_count}</b><span>Sections</span></div>
-      <div class="result-item"><b>${result.chunks_count}</b><span>Chunks</span></div>
-      <div class="result-item"><b>${result.vectors_count}</b><span>Vectors</span></div>
-      <div class="result-item"><b>${result.stored_count}</b><span>Stored</span></div>
-      <div class="result-item"><b>${result.dimension}</b><span>${escapeHTML(result.metric_type)}</span></div>
-    </div>
-    <div class="detail-panel">
-      <div class="detail-header">
-        <span>入库详情</span>
-        <span class="detail-meta">${escapeHTML(result.collection_name)}</span>
-      </div>
-      <pre>${escapeHTML(JSON.stringify(result, null, 2))}</pre>
-    </div>
-  `;
-}
-
-function updateStats() {
-  const stored = files.filter(file => file.status === "stored").length;
-  const latestResult = [...files].reverse().find(file => file.result)?.result;
-  document.getElementById("stat-files").textContent = files.length;
-  document.getElementById("stat-stored").textContent = stored;
-  document.getElementById("stat-chunks").textContent = latestResult ? latestResult.chunks_count : 0;
-  document.getElementById("stat-vectors").textContent = latestResult ? latestResult.vectors_count : 0;
-  document.getElementById("stored-badge").textContent = stored;
-  document.getElementById("header-meta").textContent = `${files.length} 个文件 · ${stored} 个已入库 · API ${API_BASE_URL}`;
-}
-
-function statusClass(status) {
-  return status === "stored" ? "ready" : status === "indexing" ? "indexing" : status === "failed" ? "failed" : "";
-}
-
-function statusLabel(status) {
-  return {
-    ready: "待入库",
-    indexing: "入库中",
-    stored: "已入库",
-    failed: "失败",
-  }[status] || "待入库";
-}
-
-function formatSize(bytes) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
-}
-
-function escapeHTML(value) {
-  const div = document.createElement("div");
-  div.textContent = String(value);
-  return div.innerHTML;
-}
-
-function showToast(message) {
-  const container = document.getElementById("toast-container");
-  const toast = document.createElement("div");
-  toast.className = "toast";
-  toast.textContent = message;
-  container.appendChild(toast);
-  setTimeout(() => toast.remove(), 2600);
-}
-
-function loadFiles() {
-  try {
-    const raw = localStorage.getItem(FILE_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    if (!Array.isArray(parsed)) return [];
-
-    return parsed.map(file => ({
-      name: String(file.name || ""),
-      ext: String(file.ext || "txt"),
-      size: Number(file.size || 0),
-      content: String(file.content || ""),
-      status: file.status === "indexing" ? "ready" : String(file.status || "ready"),
-      uploadedAt: String(file.uploadedAt || ""),
-      result: file.result || null,
-      error: String(file.error || ""),
-    })).filter(file => file.name && file.content);
-  } catch (_) {
-    return [];
-  }
-}
-
-function saveFiles() {
-  try {
-    localStorage.setItem(FILE_STORAGE_KEY, JSON.stringify(files));
-  } catch (_) {
-    showToast("浏览器本地存储空间不足，刷新后可能无法恢复文件");
-  }
-}
-
-renderFiles();
-updateStats();
-</script>
+<!-- legacy-disabled block removed — see /admin/app.js for the live implementation -->
 </body>
 </html>

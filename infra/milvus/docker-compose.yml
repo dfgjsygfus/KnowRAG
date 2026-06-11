@@ -38,7 +38,7 @@ services:
 
   standalone:
     container_name: knowrag-milvus-standalone
-    image: milvusdb/milvus:v2.4.11
+    image: milvusdb/milvus:v2.5.9
     command: ["milvus", "run", "standalone"]
     security_opt:
       - seccomp:unconfined

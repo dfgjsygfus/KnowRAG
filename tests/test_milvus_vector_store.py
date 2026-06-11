@@ -7,6 +7,7 @@ from backend.app.schemas.ingestion import (
     MilvusStoreConfig,
 )
 from backend.app.services.milvus_vector_store import MilvusVectorStore
+from backend.app.services.milvus_vector_store import _search_hit_to_result
 
 
 class FakeMilvusClient:
@@ -15,6 +16,12 @@ class FakeMilvusClient:
         self.created = []
         self.upserts = []
         self.deletes = []
+
+    def create_schema(self, **kwargs):
+        return FakeSchema(kwargs)
+
+    def prepare_index_params(self):
+        return FakeIndexParams()
 
     def has_collection(self, collection_name):
         return collection_name in self.collections
@@ -50,9 +57,11 @@ class MilvusVectorStoreTest(unittest.TestCase):
         self.assertEqual(result.stored_count, 1)
         self.assertEqual(result.dimension, 4096)
         self.assertEqual(result.metric_type, "COSINE")
-        self.assertEqual(client.created[0]["dimension"], 4096)
-        self.assertEqual(client.created[0]["metric_type"], "COSINE")
-        self.assertEqual(client.created[0]["id_type"], "string")
+        schema = client.created[0]["schema"]
+        self.assertEqual(schema.fields[1]["dim"], 4096)
+        self.assertEqual(schema.fields[2]["analyzer_params"], {"tokenizer": "jieba"})
+        self.assertEqual(schema.functions[0].input_field_names, ["text"])
+        self.assertEqual(client.created[0]["index_params"].indexes[1]["metric_type"], "BM25")
         point = client.upserts[0]["data"][0]
         self.assertEqual(point["id"], "demo:0000")
         self.assertEqual(point["vector"], [0.1] * 4096)
@@ -61,6 +70,7 @@ class MilvusVectorStoreTest(unittest.TestCase):
         self.assertEqual(point["heading_path_json"], "[\"Root\", \"Child\"]")
         self.assertIn("Useful content", point["content"])
         self.assertTrue(point["content_b64"])
+        self.assertIn("Root > Child", point["text"])
 
     def test_uses_existing_collection_without_creating_again(self):
         client = FakeMilvusClient()
@@ -84,6 +94,42 @@ class MilvusVectorStoreTest(unittest.TestCase):
             client.deletes,
             [{"collection_name": "knowrag_chunks", "ids": ["demo:0000", "demo:0001"]}],
         )
+
+    def test_preserves_hybrid_ranker_score(self):
+        result = _search_hit_to_result(
+            {
+                "id": "demo:0000",
+                "distance": 0.032,
+                "entity": {
+                    "chunk_id": "demo:0000",
+                    "source_path": "docs/demo.md",
+                    "document_title": "Root",
+                },
+            }
+        )
+
+        self.assertEqual(result.score, 0.032)
+
+
+class FakeSchema:
+    def __init__(self, options):
+        self.options = options
+        self.fields = []
+        self.functions = []
+
+    def add_field(self, name, data_type, **kwargs):
+        self.fields.append({"name": name, "data_type": data_type, **kwargs})
+
+    def add_function(self, function):
+        self.functions.append(function)
+
+
+class FakeIndexParams:
+    def __init__(self):
+        self.indexes = []
+
+    def add_index(self, **kwargs):
+        self.indexes.append(kwargs)
 
 
 def _embedding_result() -> EmbeddingResult:

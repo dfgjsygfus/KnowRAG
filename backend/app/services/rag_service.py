@@ -5,9 +5,10 @@ from typing import Any
 
 from backend.app.schemas.query_routing import QueryIntent, QueryRoute
 from backend.app.schemas.retrieval import RetrievalResult, RetrievalSearchResult
-from backend.app.services.app_config import get_config_value
+from backend.app.services.app_config import get_config_int, get_config_value
 from backend.app.services.openai_chat import OpenAIChatClient
 from backend.app.services.query_router import route_query
+from backend.app.services.reranker import CrossEncoderReranker, RerankerError
 from backend.app.services.retrieval_service import retrieve_query
 
 
@@ -38,11 +39,13 @@ async def stream_rag_answer(
         yield {"event": "done", "data": {"state": "success"}}
         return
 
-    retrieval = (retrieve or retrieve_query)(normalized_question, top_k)
-    relevant_results = [
-        item for item in retrieval.results
-        if item.score >= (min_score if min_score is not None else _configured_min_score())
-    ]
+    retrieval = (retrieve or retrieve_query)(normalized_question, _rerank_top_n())
+    relevant_results = _rerank_and_filter(
+        normalized_question,
+        retrieval.results,
+        top_k=top_k,
+        min_score=min_score or _configured_min_score(),
+    )
     sources = [_source_payload(item, index) for index, item in enumerate(relevant_results, start=1)]
     yield {"event": "sources", "data": {"sources": sources}}
 
@@ -128,5 +131,53 @@ def _route_payload(route: QueryRoute) -> dict[str, Any]:
 
 
 def _configured_min_score() -> float:
-    value = get_config_value("RAG_MIN_SCORE", "0.50")
-    return float(value)
+    return float(get_config_value("RAG_MIN_SCORE", "0.50"))
+
+
+def _rerank_top_n() -> int:
+    return get_config_int("RAG_RERANK_TOP_N", 20)
+
+
+def _rerank_enabled() -> bool:
+    return get_config_value("RERANKER_ENABLED", "true").lower() in {"1", "true", "yes", "on"}
+
+
+def _rerank_and_filter(
+    question: str,
+    candidates: list[RetrievalSearchResult],
+    top_k: int = 5,
+    min_score: float = 0.50,
+) -> list[RetrievalSearchResult]:
+    """Reranker 精排 + 阈值过滤，失败时降级为纯粗排过滤。"""
+
+    if not candidates:
+        return []
+
+    thresholded_candidates = [item for item in candidates if item.score >= min_score]
+    if not thresholded_candidates:
+        return []
+
+    if not _rerank_enabled() or len(thresholded_candidates) <= top_k:
+        return thresholded_candidates[:top_k]
+
+    try:
+        reranker = CrossEncoderReranker()
+        payloads = [_source_payload(item, 0) for item in thresholded_candidates]
+        reranked = reranker.rerank(question, payloads, top_k=top_k)
+
+        relevant = []
+        for item in reranked:
+            # 找到原始的 RetrievalSearchResult
+            for candidate in thresholded_candidates:
+                if candidate.chunk_id == item["chunk_id"]:
+                    relevant.append(candidate)
+                    break
+
+        if relevant:
+            return relevant
+
+        # 如果 reranker 返回了结果但没匹配到（不该发生），降级
+    except RerankerError:
+        pass  # 降级到粗排过滤
+
+    return thresholded_candidates[:top_k]

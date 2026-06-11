@@ -23,7 +23,11 @@ class RetrievalServiceTest(unittest.TestCase):
         self.assertEqual(embedding_client.texts, ["Prompt 设计是什么？"])
         self.assertEqual(milvus_client.search_calls[0]["collection_name"], "knowrag_chunks")
         self.assertEqual(milvus_client.search_calls[0]["limit"], 3)
-        self.assertEqual(milvus_client.search_calls[0]["data"], [[0.1, 0.2, 0.3]])
+        self.assertEqual(len(milvus_client.search_calls[0]["reqs"]), 2)
+        self.assertEqual(milvus_client.search_calls[0]["ranker"].dict()["strategy"], "weighted")
+        self.assertEqual(milvus_client.search_calls[0]["ranker"].dict()["params"]["weights"], [0.1, 0.9])
+        self.assertEqual(milvus_client.search_calls[0]["reqs"][0].limit, 20)
+        self.assertEqual(milvus_client.search_calls[0]["reqs"][1].limit, 20)
         self.assertEqual(result.query, "Prompt 设计是什么？")
         self.assertEqual(result.top_k, 3)
         self.assertEqual(result.collection_name, "knowrag_chunks")
@@ -79,7 +83,7 @@ class FakeMilvusClient:
     def has_collection(self, collection_name):
         return collection_name == "knowrag_chunks"
 
-    def search(self, **kwargs):
+    def hybrid_search(self, **kwargs):
         self.search_calls.append(kwargs)
         return [
             [

@@ -8,6 +8,7 @@ from backend.app.api.chat import router as chat_router
 from backend.app.api.documents import router as documents_router
 from backend.app.api.ingestion import router as ingestion_router
 from backend.app.api.retrieval import router as retrieval_router
+from backend.app.api.settings import router as settings_router
 
 app = FastAPI()
 app.add_middleware(
@@ -19,6 +20,8 @@ app.add_middleware(
         "http://localhost:5500",
         "http://127.0.0.1:1420",
         "http://localhost:1420",
+        "http://127.0.0.1:1580",
+        "http://localhost:1580",
         "http://tauri.localhost",
         "tauri://localhost",
     ],
@@ -30,6 +33,7 @@ app.include_router(documents_router)
 app.include_router(ingestion_router)
 app.include_router(retrieval_router)
 app.include_router(chat_router)
+app.include_router(settings_router)
 ADMIN_CONSOLE_PATH = Path(__file__).resolve().parent / "frontend" / "index.html"
 ADMIN_CONSOLE_SCRIPT_PATH = Path(__file__).resolve().parent / "frontend" / "app.js"
 

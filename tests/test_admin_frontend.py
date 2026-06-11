@@ -23,6 +23,21 @@ class AdminFrontendTest(unittest.TestCase):
         self.assertNotIn("files.unshift(normalizeDocument(document));", upload_block)
         self.assertIn("document.deduplicated", upload_block)
 
+    def test_admin_console_exposes_chat_model_settings_view(self):
+        html = ADMIN_HTML.read_text(encoding="utf-8")
+        script = ADMIN_SCRIPT.read_text(encoding="utf-8")
+
+        self.assertIn('id="nav-settings"', html)
+        self.assertIn("showSettingsView", script)
+        self.assertIn('apiFetch("/api/settings/chat-model"', script)
+        self.assertIn('apiFetch("/api/settings/chat-model/test"', script)
+        self.assertIn("chat-model-provider", script)
+        self.assertIn("chat-model-test", script)
+        self.assertIn('option value="custom"', script)
+        self.assertIn("api_key_set", script)
+        self.assertIn("profiles", script)
+        self.assertNotIn("chatSettings.api_key = result.api_key", script)
+
 
 class UploadStructureParser(HTMLParser):
     def __init__(self):

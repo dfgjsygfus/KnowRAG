@@ -79,9 +79,23 @@ class RetrievalEvaluationTest(unittest.TestCase):
         report = evaluate_retrieval(cases, retrieve, top_k=5)
 
         self.assertEqual(report["errors"], 1)
+        self.assertFalse(report["valid"])
+        self.assertEqual(report["error_rate"], 0.5)
         self.assertEqual(report["cases"][1]["error"], "milvus unavailable")
         self.assertEqual(report["recall_at_k"], 0.5)
         self.assertEqual(report["answerable_top_scores"], [0.9])
+
+    def test_marks_error_free_evaluation_as_valid(self):
+        cases = _cases()[:1]
+
+        report = evaluate_retrieval(
+            cases,
+            lambda question, top_k: _retrieval(_hit("correct", 0.9, "docs/chief.md", ("Prompt 设计",))),
+            top_k=5,
+        )
+
+        self.assertTrue(report["valid"])
+        self.assertEqual(report["error_rate"], 0.0)
 
     def test_heading_keyword_can_match_retrieved_chunk_content(self):
         cases = _cases()[:1]

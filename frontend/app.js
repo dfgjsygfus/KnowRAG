@@ -2,6 +2,7 @@ const API_BASE_URL = localStorage.getItem("knowrag-api-base") || window.location
 
 const files = [];
 let selectedIndex = -1;
+let chatSettings = null;
 
 const uploadZone = document.getElementById("upload-zone");
 const fileInput = document.getElementById("file-input");
@@ -11,7 +12,9 @@ const fileSearch = document.getElementById("file-search");
 const detailArea = document.getElementById("detail-area");
 const navDocuments = document.getElementById("nav-documents");
 const navMilvus = document.getElementById("nav-milvus");
+const navSettings = document.getElementById("nav-settings");
 const documentSection = document.querySelector(".main-body > .section-card");
+const statsRow = document.querySelector(".stats-row");
 const headerTitle = document.querySelector(".main-header h1");
 const indexAllButton = document.getElementById("btn-index-all");
 
@@ -33,6 +36,7 @@ fileInput.addEventListener("change", event => {
 fileSearch.addEventListener("input", renderFiles);
 navDocuments.addEventListener("click", showDocumentsView);
 navMilvus.addEventListener("click", showMilvusView);
+navSettings.addEventListener("click", showSettingsView);
 
 document.getElementById("btn-clear").addEventListener("click", () => {
   clearDocuments();
@@ -221,6 +225,8 @@ function resultSummaryHTML(document) {
 function showDocumentsView() {
   navDocuments.classList.add("active");
   navMilvus.classList.remove("active");
+  navSettings.classList.remove("active");
+  statsRow.style.display = "";
   documentSection.style.display = "";
   indexAllButton.style.display = "";
   headerTitle.textContent = "文档入库";
@@ -231,6 +237,8 @@ function showDocumentsView() {
 function showMilvusView() {
   navMilvus.classList.add("active");
   navDocuments.classList.remove("active");
+  navSettings.classList.remove("active");
+  statsRow.style.display = "";
   documentSection.style.display = "none";
   indexAllButton.style.display = "none";
   headerTitle.textContent = "Milvus 检索测试";
@@ -259,8 +267,8 @@ function retrievalPanelHTML() {
       </div>
       <div class="retrieval-results" id="retrieval-results">
         <div class="empty-state" style="padding: 42px 24px;">
-          <h3>等待检索</h3>
-          <p>输入一个问题，查看 Milvus 返回的相似 chunk。</p>
+          <h3>🐾 等待检索</h3>
+          <p>输入一个问题，旺财帮你在知识库里找答案。</p>
         </div>
       </div>
     </div>
@@ -281,7 +289,7 @@ async function searchRetrieval() {
   }
 
   submitButton.disabled = true;
-  resultsArea.innerHTML = `<div class="empty-state" style="padding: 42px 24px;"><h3>检索中</h3><p>正在向量化问题并查询 Milvus...</p></div>`;
+  resultsArea.innerHTML = `<div class="empty-state" style="padding: 42px 24px;"><h3>🐶 检索中</h3><p>旺财正在向量化问题并查询 Milvus...</p></div>`;
   try {
     const result = await apiFetch("/api/retrieval/search", {
       method: "POST",
@@ -289,7 +297,7 @@ async function searchRetrieval() {
     });
     renderRetrievalResults(result);
   } catch (error) {
-    resultsArea.innerHTML = `<div class="empty-state" style="padding: 42px 24px;"><h3>检索失败</h3><p>${escapeHTML(error.message || "请检查 Milvus 和 API 配置")}</p></div>`;
+    resultsArea.innerHTML = `<div class="empty-state" style="padding: 42px 24px;"><h3>😿 检索失败</h3><p>${escapeHTML(error.message || "请检查 Milvus 和 API 配置")}</p></div>`;
   } finally {
     submitButton.disabled = false;
   }
@@ -298,7 +306,7 @@ async function searchRetrieval() {
 function renderRetrievalResults(result) {
   const resultsArea = document.getElementById("retrieval-results");
   if (!result.results || result.results.length === 0) {
-    resultsArea.innerHTML = `<div class="empty-state" style="padding: 42px 24px;"><h3>没有命中</h3><p>可以换一个问法，或检查文档是否已经入库。</p></div>`;
+    resultsArea.innerHTML = `<div class="empty-state" style="padding: 42px 24px;"><h3>🐾 没有命中</h3><p>可以换一个问法，或检查文档是否已经入库。</p></div>`;
     return;
   }
 
@@ -314,6 +322,168 @@ function renderRetrievalResults(result) {
       <div class="retrieval-result-body">${escapeHTML(item.content || "")}</div>
     </div>
   `).join("");
+}
+
+async function showSettingsView() {
+  navSettings.classList.add("active");
+  navDocuments.classList.remove("active");
+  navMilvus.classList.remove("active");
+  statsRow.style.display = "none";
+  documentSection.style.display = "none";
+  indexAllButton.style.display = "none";
+  headerTitle.textContent = "模型设置";
+  document.getElementById("header-meta").textContent = "配置桌宠问答使用的对话模型 API";
+  detailArea.style.display = "block";
+  detailArea.innerHTML = settingsPanelHTML();
+  bindSettingsForm();
+  await loadChatModelSettings();
+}
+
+function settingsPanelHTML() {
+  return `
+    <div class="section-card">
+      <div class="section-card-header">
+        <h2>对话模型</h2>
+        <span class="detail-meta">OpenAI-compatible Chat Completions</span>
+      </div>
+      <form class="settings-form" id="chat-model-form">
+        <div class="settings-field">
+          <label for="chat-model-provider">接入厂商</label>
+          <select class="retrieval-input" id="chat-model-provider">
+            <option value="deepseek">DeepSeek</option>
+            <option value="qwen">Qwen</option>
+            <option value="custom">自定义</option>
+          </select>
+        </div>
+        <div class="settings-field">
+          <label for="chat-model-timeout">超时时间（秒）</label>
+          <input class="retrieval-input" id="chat-model-timeout" type="number" min="5" max="600" value="120">
+        </div>
+        <div class="settings-field full">
+          <label for="chat-model-api-key">API Key</label>
+          <input class="retrieval-input" id="chat-model-api-key" type="password" autocomplete="off" placeholder="输入新的 API Key">
+        </div>
+        <div class="settings-field full">
+          <label for="chat-model-base-url">Base URL</label>
+          <input class="retrieval-input" id="chat-model-base-url" autocomplete="off">
+        </div>
+        <div class="settings-field full">
+          <label for="chat-model-name">模型名</label>
+          <input class="retrieval-input" id="chat-model-name" autocomplete="off">
+        </div>
+        <div class="settings-actions">
+          <span class="settings-note" id="chat-model-key-state">正在读取配置...</span>
+          <button class="btn btn-ghost" id="chat-model-test" type="button">测试连接</button>
+          <button class="btn btn-primary" id="chat-model-save" type="submit">保存设置</button>
+        </div>
+      </form>
+    </div>
+  `;
+}
+
+function bindSettingsForm() {
+  const providerInput = document.getElementById("chat-model-provider");
+  const form = document.getElementById("chat-model-form");
+  const testButton = document.getElementById("chat-model-test");
+  providerInput.addEventListener("change", () => applyChatProviderPreset(providerInput.value));
+  testButton.addEventListener("click", testChatModelConnection);
+  form.addEventListener("submit", saveChatModelSettings);
+}
+
+async function loadChatModelSettings() {
+  try {
+    const result = await apiFetch("/api/settings/chat-model");
+    chatSettings = result;
+    renderChatModelSettings(result);
+  } catch (error) {
+    document.getElementById("chat-model-key-state").textContent = error.message || "读取配置失败";
+  }
+}
+
+function renderChatModelSettings(settings) {
+  const provider = settings.provider || "qwen";
+  const profile = settings.profiles?.[provider] || settings;
+  document.getElementById("chat-model-provider").value = provider;
+  document.getElementById("chat-model-api-key").value = "";
+  document.getElementById("chat-model-base-url").value = profile.base_url || "";
+  document.getElementById("chat-model-name").value = profile.model || "";
+  document.getElementById("chat-model-timeout").value = profile.timeout_seconds || 120;
+  renderChatProfileKeyState(profile);
+}
+
+function renderChatProfileKeyState(profile) {
+  const apiKeyInput = document.getElementById("chat-model-api-key");
+  apiKeyInput.placeholder = profile?.api_key_set
+    ? "已保存，留空则不修改"
+    : "输入 API Key";
+  document.getElementById("chat-model-key-state").textContent = profile?.api_key_set
+    ? "API Key 已保存"
+    : "尚未保存 API Key";
+}
+
+function applyChatProviderPreset(provider) {
+  const profile = chatSettings?.profiles?.[provider];
+  const preset = chatSettings?.presets?.[provider];
+  if (!preset) return;
+  document.getElementById("chat-model-api-key").value = "";
+  document.getElementById("chat-model-base-url").value = profile?.base_url ?? preset.base_url;
+  document.getElementById("chat-model-name").value = profile?.model ?? preset.model;
+  document.getElementById("chat-model-timeout").value = profile?.timeout_seconds || 120;
+  renderChatProfileKeyState(profile || { api_key_set: false });
+}
+
+async function saveChatModelSettings(event) {
+  event.preventDefault();
+  const saveButton = document.getElementById("chat-model-save");
+  saveButton.disabled = true;
+  try {
+    const result = await apiFetch("/api/settings/chat-model", {
+      method: "PUT",
+      body: JSON.stringify(chatModelSettingsPayload()),
+    });
+    chatSettings = result;
+    renderChatModelSettings(result);
+    showToast("模型设置已保存");
+  } catch (error) {
+    showToast(error.message || "保存模型设置失败");
+  } finally {
+    saveButton.disabled = false;
+  }
+}
+
+async function testChatModelConnection() {
+  const testButton = document.getElementById("chat-model-test");
+  const keyState = document.getElementById("chat-model-key-state");
+  testButton.disabled = true;
+  keyState.textContent = "正在测试连接...";
+  try {
+    const result = await apiFetch("/api/settings/chat-model/test", {
+      method: "POST",
+      body: JSON.stringify(chatModelSettingsPayload()),
+    });
+    if (result.ok) {
+      keyState.textContent = `连接成功：${result.model}`;
+      showToast("模型连接测试成功");
+    } else {
+      keyState.textContent = result.message || "连接失败，请检查配置";
+      showToast(result.message || "模型连接测试失败");
+    }
+  } catch (error) {
+    keyState.textContent = error.message || "连接测试失败";
+    showToast(error.message || "连接测试失败");
+  } finally {
+    testButton.disabled = false;
+  }
+}
+
+function chatModelSettingsPayload() {
+  return {
+    provider: document.getElementById("chat-model-provider").value,
+    api_key: document.getElementById("chat-model-api-key").value,
+    base_url: document.getElementById("chat-model-base-url").value,
+    model: document.getElementById("chat-model-name").value,
+    timeout_seconds: Number(document.getElementById("chat-model-timeout").value || 120),
+  };
 }
 
 function updateStats() {

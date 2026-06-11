@@ -38,11 +38,12 @@ def main() -> int:
 
     print(f"Dataset: {args.dataset}")
     print(f"Cases: {report['total_cases']} | Errors: {report['errors']}")
+    print(f"Evaluation valid: {report['valid']} | Error rate: {report['error_rate']:.4f}")
     print(f"Recall@{args.top_k}: {report['recall_at_k']:.4f}")
     print(f"MRR: {report['mrr']:.4f}")
     print(f"Recommended RAG_MIN_SCORE: {report['recommended_min_score']}")
     print(f"Report: {output_path}")
-    return 0
+    return 0 if report["valid"] else 2
 
 
 def _default_report_path() -> Path:

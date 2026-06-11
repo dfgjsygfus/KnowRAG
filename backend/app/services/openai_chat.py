@@ -7,6 +7,9 @@ from typing import Any
 import httpx
 
 from backend.app.services.app_config import get_config_int, get_config_value
+from backend.app.services.chat_model_settings import (
+    get_effective_chat_model_config,
+)
 
 
 class OpenAIChatError(RuntimeError):
@@ -27,9 +30,44 @@ class OpenAIChatClient:
         timeout_seconds: int | None = None,
         transport: StreamingTransport | None = None,
     ) -> None:
-        self.api_key, self.base_url, self.model = _generation_config(api_key, base_url, model)
-        self.timeout_seconds = timeout_seconds or get_config_int("OPENAI_TIMEOUT_SECONDS", 120)
+        self.api_key, self.base_url, self.model, configured_timeout = _generation_config(api_key, base_url, model)
+        self.timeout_seconds = timeout_seconds or configured_timeout
         self.transport = transport
+
+    async def chat(self, messages: list[dict[str, str]], temperature: float = 0.2) -> str:
+        """Non-streaming chat completion — fast, for classification / routing."""
+
+        self._validate_config()
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "stream": False,
+            "temperature": temperature,
+        }
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+        url = _chat_completions_url(self.base_url)
+        timeout = httpx.Timeout(self.timeout_seconds, connect=15.0)
+
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as http:
+                resp = await http.post(url, headers=headers, json=payload)
+                if resp.status_code != 200:
+                    raise OpenAIChatError(
+                        f"Generation API HTTP {resp.status_code}: "
+                        f"{resp.text[:500]}"
+                    )
+                body = resp.json()
+                return str(body["choices"][0]["message"].get("content") or "")
+        except (json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
+            raise OpenAIChatError("Generation API returned an invalid response.") from exc
+        except httpx.TimeoutException as exc:
+            raise OpenAIChatError(f"Generation API request timed out: {exc}") from exc
+        except httpx.RequestError as exc:
+            raise OpenAIChatError(f"Generation API request failed: {exc}") from exc
 
     async def stream_chat(self, messages: list[dict[str, str]]) -> AsyncIterator[str]:
         """Yield text deltas from an OpenAI-compatible SSE response."""
@@ -109,9 +147,12 @@ def _parse_sse_line(line: str) -> tuple[bool, str]:
 
     try:
         item = json.loads(data)
-        content = item["choices"][0]["delta"].get("content")
-    except (json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
-        raise OpenAIChatError("Generation stream returned an invalid SSE event.") from exc
+        choices = item.get("choices", [])
+        if not choices:
+            return False, ""  # 最后的 usage-only chunk 没有 content
+        content = choices[0].get("delta", {}).get("content")
+    except (json.JSONDecodeError, KeyError, IndexError, TypeError):
+        return False, ""  # 容错：跳过无法解析的事件
     return False, str(content or "")
 
 
@@ -119,20 +160,26 @@ def _generation_config(
     api_key: str | None,
     base_url: str | None,
     model: str | None,
-) -> tuple[str, str, str]:
+) -> tuple[str, str, str, int]:
     if any(value is not None for value in (api_key, base_url, model)):
-        return api_key or "", base_url or "", model or ""
+        return api_key or "", base_url or "", model or "", get_config_int("OPENAI_TIMEOUT_SECONDS", 120)
 
+    saved_config = get_effective_chat_model_config()
+    if saved_config is not None:
+        return saved_config
+
+    timeout_seconds = get_config_int("OPENAI_TIMEOUT_SECONDS", 120)
     openai_config = (
         get_config_value("OPENAI_API_KEY"),
         get_config_value("OPENAI_BASE_URL"),
         get_config_value("OPENAI_MODEL"),
     )
     if any(openai_config):
-        return openai_config
+        return openai_config[0], openai_config[1], openai_config[2], timeout_seconds
 
     return (
         get_config_value("SILICONFLOW_API_KEY"),
         get_config_value("SILICONFLOW_BASE_URL"),
         "Qwen/Qwen3-8B",
+        timeout_seconds,
     )

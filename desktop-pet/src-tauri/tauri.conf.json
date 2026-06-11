@@ -5,7 +5,7 @@
   "identifier": "com.knowrag.desktop-pet",
   "build": {
     "beforeDevCommand": "npm run dev",
-    "devUrl": "http://127.0.0.1:1420",
+    "devUrl": "http://127.0.0.1:1580",
     "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },

@@ -91,6 +91,39 @@ class RagServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(events[2]["data"]["sources"]), 1)
         self.assertNotIn("[2]", client.messages[1]["content"])
 
+    async def test_reranker_receives_only_results_above_minimum_score(self):
+        best_score = _hit("high:0001", 0.91, "high enough")
+        second_score = _hit("high:0002", 0.89, "also high enough")
+        low_score = _hit("low:0001", 0.31, "too low")
+        retrieval = RetrievalResult(
+            query="question",
+            top_k=3,
+            collection_name="knowrag_chunks",
+            total=3,
+            results=[best_score, second_score, low_score],
+        )
+        client = FakeChatClient(["answer [1]"])
+        FakeReranker.received_candidates = None
+
+        with patch("backend.app.services.rag_service.CrossEncoderReranker", FakeReranker):
+            events = [
+                event async for event in stream_rag_answer(
+                    question="question",
+                    top_k=1,
+                    retrieve=lambda question, top_k: retrieval,
+                    chat_client=client,
+                    min_score=0.55,
+                    route=lambda question: _route(QueryIntent.KNOWLEDGE_QUERY),
+                )
+            ]
+
+        self.assertEqual(
+            [item["chunk_id"] for item in FakeReranker.received_candidates],
+            ["high:0001", "high:0002"],
+        )
+        self.assertEqual(events[2]["data"]["sources"][0]["chunk_id"], "high:0001")
+        self.assertNotIn("too low", client.messages[1]["content"])
+
     async def test_default_minimum_score_uses_calibrated_value(self):
         retrieval = _retrieval_result(score=0.52)
         client = FakeChatClient(["答案 [1]"])
@@ -148,6 +181,14 @@ class FakeChatClient:
             yield delta
 
 
+class FakeReranker:
+    received_candidates = None
+
+    def rerank(self, question, candidates, top_k=5):
+        self.__class__.received_candidates = candidates
+        return candidates[:top_k]
+
+
 def _retrieval_result(score=0.91):
     return RetrievalResult(
         query="ChiefArchitect 的职责是什么？",
@@ -167,6 +208,20 @@ def _retrieval_result(score=0.91):
                 end_line=20,
             )
         ],
+    )
+
+
+def _hit(chunk_id, score, content):
+    return RetrievalSearchResult(
+        chunk_id=chunk_id,
+        score=score,
+        document_title="ChiefArchitect",
+        source_path="docs/chief.md",
+        heading_path=("Agent", "Role"),
+        content=content,
+        token_count=15,
+        start_line=10,
+        end_line=20,
     )
 
 

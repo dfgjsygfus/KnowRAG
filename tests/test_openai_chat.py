@@ -43,15 +43,30 @@ class OpenAIChatClientTest(unittest.IsolatedAsyncioTestCase):
             "SILICONFLOW_API_KEY": "silicon-key",
             "SILICONFLOW_BASE_URL": "https://api.siliconflow.cn/v1",
         }
-        with patch(
-            "backend.app.services.openai_chat.get_config_value",
-            side_effect=lambda name, default="": values.get(name, default) or default,
+        with (
+            patch("backend.app.services.openai_chat.get_effective_chat_model_config", return_value=None),
+            patch(
+                "backend.app.services.openai_chat.get_config_value",
+                side_effect=lambda name, default="": values.get(name, default) or default,
+            ),
         ):
             client = OpenAIChatClient()
 
         self.assertEqual(client.api_key, "silicon-key")
         self.assertEqual(client.base_url, "https://api.siliconflow.cn/v1")
         self.assertEqual(client.model, "Qwen/Qwen3-8B")
+
+    def test_uses_saved_chat_model_settings_before_environment_fallback(self):
+        with patch(
+            "backend.app.services.openai_chat.get_effective_chat_model_config",
+            return_value=("deepseek-secret", "https://api.deepseek.com", "deepseek-chat", 90),
+        ):
+            client = OpenAIChatClient()
+
+        self.assertEqual(client.api_key, "deepseek-secret")
+        self.assertEqual(client.base_url, "https://api.deepseek.com")
+        self.assertEqual(client.model, "deepseek-chat")
+        self.assertEqual(client.timeout_seconds, 90)
 
     async def test_does_not_mix_partial_openai_configuration_with_siliconflow(self):
         values = {
@@ -61,9 +76,12 @@ class OpenAIChatClientTest(unittest.IsolatedAsyncioTestCase):
             "SILICONFLOW_API_KEY": "silicon-key",
             "SILICONFLOW_BASE_URL": "https://api.siliconflow.cn/v1",
         }
-        with patch(
-            "backend.app.services.openai_chat.get_config_value",
-            side_effect=lambda name, default="": values.get(name, default),
+        with (
+            patch("backend.app.services.openai_chat.get_effective_chat_model_config", return_value=None),
+            patch(
+                "backend.app.services.openai_chat.get_config_value",
+                side_effect=lambda name, default="": values.get(name, default),
+            ),
         ):
             client = OpenAIChatClient()
 

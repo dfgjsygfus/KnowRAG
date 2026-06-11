@@ -24,7 +24,7 @@ def retrieve_query(
     embedding_config: EmbeddingConfig | None = None,
     store_config: MilvusStoreConfig | None = None,
 ) -> RetrievalResult:
-    """把用户问题向量化后，到 Milvus 中召回最相似的 chunk。"""
+    """把用户问题向量化后，到 Milvus 中做原生 BM25 混合召回。"""
 
     embedding_config = embedding_config or _embedding_config()
     store_config = store_config or _milvus_store_config()
@@ -34,59 +34,38 @@ def retrieve_query(
     started_at = perf_counter()
     embedding_response = embedding_client.embed_texts([normalized_query], embedding_config)
     query_vector = [float(value) for value in embedding_response["embeddings"][0]]
+
     vector_store = MilvusVectorStore(client=milvus_client, config=store_config)
     result = vector_store.search_chunks(query=normalized_query, query_vector=query_vector, top_k=top_k)
 
     if _retrieval_log_enabled():
-        logger.info(
-            json.dumps(
-                {
-                    "event": "retrieval.completed",
-                    "query": normalized_query,
-                    "top_k": top_k,
-                    "collection": result.collection_name,
-                    "elapsed_ms": round((perf_counter() - started_at) * 1000, 3),
-                    "total": result.total,
-                    "hits": [
-                        {"chunk_id": item.chunk_id, "score": round(item.score, 6)}
-                        for item in result.results
-                    ],
-                },
-                ensure_ascii=False,
-            )
-        )
+        logger.info(json.dumps({
+            "event": "retrieval.completed",
+            "query": normalized_query, "top_k": top_k, "hybrid": True,
+            "collection": result.collection_name,
+            "elapsed_ms": round((perf_counter() - started_at) * 1000, 3),
+            "total": result.total,
+            "hits": [{"chunk_id": item.chunk_id, "score": round(item.score, 6)} for item in result.results],
+        }, ensure_ascii=False))
     return result
 
 
 def retrieve_query_payload(request) -> dict[str, Any]:
-    """路由层调用的检索入口，返回 JSON 友好的结构。"""
-
     result = retrieve_query(query=request.query, top_k=request.top_k)
     return {
-        "query": result.query,
-        "top_k": result.top_k,
-        "collection_name": result.collection_name,
-        "total": result.total,
+        "query": result.query, "top_k": result.top_k,
+        "collection_name": result.collection_name, "total": result.total,
         "results": [
-            {
-                "chunk_id": item.chunk_id,
-                "score": item.score,
-                "document_title": item.document_title,
-                "source_path": item.source_path,
-                "heading_path": list(item.heading_path),
-                "content": item.content,
-                "token_count": item.token_count,
-                "start_line": item.start_line,
-                "end_line": item.end_line,
-            }
+            {"chunk_id": item.chunk_id, "score": item.score, "document_title": item.document_title,
+             "source_path": item.source_path, "heading_path": list(item.heading_path),
+             "content": item.content, "token_count": item.token_count,
+             "start_line": item.start_line, "end_line": item.end_line}
             for item in result.results
         ],
     }
 
 
 def _embedding_config() -> EmbeddingConfig:
-    """读取检索阶段使用的 embedding 配置，确保和入库阶段保持一致。"""
-
     return EmbeddingConfig(
         model=get_config_value("SILICONFLOW_EMBEDDING_MODEL", "Qwen/Qwen3-VL-Embedding-8B"),
         batch_size=get_config_int("SILICONFLOW_EMBEDDING_BATCH_SIZE", 16),
@@ -96,8 +75,6 @@ def _embedding_config() -> EmbeddingConfig:
 
 
 def _milvus_store_config() -> MilvusStoreConfig:
-    """读取检索阶段使用的 Milvus 配置。"""
-
     return MilvusStoreConfig(
         uri=get_config_value("MILVUS_URI", "http://localhost:19530"),
         token=get_config_value("MILVUS_TOKEN"),
@@ -109,8 +86,6 @@ def _milvus_store_config() -> MilvusStoreConfig:
 
 
 def _siliconflow_embeddings_url() -> str:
-    """把 OpenAI-compatible base URL 规范化为 embeddings endpoint。"""
-
     base_url = get_config_value("SILICONFLOW_BASE_URL").rstrip("/")
     if not base_url:
         return "https://api.siliconflow.cn/v1/embeddings"
@@ -120,6 +95,4 @@ def _siliconflow_embeddings_url() -> str:
 
 
 def _retrieval_log_enabled() -> bool:
-    """默认记录安全的检索元数据，可通过环境变量关闭。"""
-
     return get_config_value("RETRIEVAL_LOG_ENABLED", "true").lower() in {"1", "true", "yes", "on"}

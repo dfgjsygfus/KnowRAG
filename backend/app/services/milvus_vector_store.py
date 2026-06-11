@@ -4,6 +4,7 @@ import base64
 import json
 from typing import Any
 
+from backend.app.services.app_config import get_config_int, get_config_value
 from backend.app.schemas.ingestion import (
     EmbeddingResult,
     MilvusStoreConfig,
@@ -17,40 +18,58 @@ class MilvusVectorStoreError(RuntimeError):
 
 
 class MilvusVectorStore:
-    """Milvus 向量入库服务。"""
+    """Milvus 向量入库 + 原生 BM25 混合检索（Milvus 2.5+）。"""
 
     def __init__(self, client: Any | None = None, config: MilvusStoreConfig | None = None) -> None:
         self.config = config or MilvusStoreConfig()
         self.client = client or _create_milvus_client(self.config)
 
     def ensure_collection(self, dimension: int | None = None) -> None:
-        """确保 collection 存在；不存在时按 embedding 维度创建。"""
+        """确保 collection 存在；不存在时创建（含 BM25 函数）。"""
 
         if self.client.has_collection(self.config.collection_name):
             return
 
+        from pymilvus import DataType, Function, FunctionType
+
+        schema = self.client.create_schema(auto_id=False, enable_dynamic_field=True)
+        schema.add_field("id", DataType.VARCHAR, is_primary=True, max_length=512)
+        schema.add_field("vector", DataType.FLOAT_VECTOR, dim=dimension or self.config.vector_dim)
+        schema.add_field(
+            "text",
+            DataType.VARCHAR,
+            max_length=65535,
+            enable_analyzer=True,
+            analyzer_params={"tokenizer": "jieba"},
+        )
+        schema.add_field("sparse_bm25", DataType.SPARSE_FLOAT_VECTOR)
+
+        bm25_fn = Function(
+            name="bm25_fn",
+            function_type=FunctionType.BM25,
+            input_field_names=["text"],
+            output_field_names=["sparse_bm25"],
+        )
+        schema.add_function(bm25_fn)
+
+        index_params = self.client.prepare_index_params()
+        index_params.add_index(field_name="vector", index_type="AUTOINDEX", metric_type=self.config.metric_type)
+        index_params.add_index(field_name="sparse_bm25", index_type="SPARSE_INVERTED_INDEX", metric_type="BM25")
+
         self.client.create_collection(
             collection_name=self.config.collection_name,
-            dimension=dimension or self.config.vector_dim,
-            primary_field_name="id",
-            id_type="string",
-            vector_field_name="vector",
-            metric_type=self.config.metric_type,
-            auto_id=False,
-            max_length=512,
-            enable_dynamic_field=True,
+            schema=schema,
+            index_params=index_params,
         )
 
     def upsert_embeddings(self, embedding_result: EmbeddingResult) -> VectorStoreResult:
-        """把 embedding 结果 upsert 到 Milvus。"""
+        """把 embedding 结果 upsert 到 Milvus（text 字段由 BM25 函数自动生成 sparse_bm25）。"""
 
         if not embedding_result.embeddings:
             return VectorStoreResult(
                 collection_name=self.config.collection_name,
-                stored_count=0,
-                dimension=self.config.vector_dim,
-                metric_type=self.config.metric_type,
-                ids=[],
+                stored_count=0, dimension=self.config.vector_dim,
+                metric_type=self.config.metric_type, ids=[],
             )
 
         dimension = embedding_result.embeddings[0].dimension
@@ -61,67 +80,85 @@ class MilvusVectorStore:
         return VectorStoreResult(
             collection_name=self.config.collection_name,
             stored_count=int(response.get("upsert_count", len(points)) if isinstance(response, dict) else len(points)),
-            dimension=dimension,
-            metric_type=self.config.metric_type,
+            dimension=dimension, metric_type=self.config.metric_type,
             ids=[point["id"] for point in points],
         )
 
     def delete_chunk_ids(self, chunk_ids: list[str]) -> int:
-        """按向量主键删除 chunk；空列表直接返回，避免无意义请求。"""
-
         unique_ids = list(dict.fromkeys(chunk_id for chunk_id in chunk_ids if chunk_id))
-        if not unique_ids:
+        if not unique_ids or not self.client.has_collection(self.config.collection_name):
             return 0
-        if not self.client.has_collection(self.config.collection_name):
-            return 0
-
         self.client.delete(collection_name=self.config.collection_name, ids=unique_ids)
         return len(unique_ids)
 
     def search_chunks(self, query: str, query_vector: list[float], top_k: int = 5) -> RetrievalResult:
-        """按 query 向量检索 Milvus 中最相近的 chunk。"""
+        """原生 BM25 混合检索 + RRF 融合。"""
 
         if not self.client.has_collection(self.config.collection_name):
-            raise MilvusVectorStoreError(f"Milvus collection `{self.config.collection_name}` does not exist.")
+            raise MilvusVectorStoreError(f"Collection `{self.config.collection_name}` does not exist.")
 
-        raw_results = self.client.search(
+        from pymilvus import AnnSearchRequest, WeightedRanker
+
+        candidate_limit = _candidate_limit(top_k)
+        dense_req = AnnSearchRequest(
+            data=[query_vector], anns_field="vector",
+            param={"metric_type": self.config.metric_type}, limit=candidate_limit,
+        )
+        sparse_req = AnnSearchRequest(
+            data=[query], anns_field="sparse_bm25",
+            param={"metric_type": "BM25"}, limit=candidate_limit,
+        )
+        ranker = WeightedRanker(_dense_weight(), _sparse_weight())
+
+        raw_results = self.client.hybrid_search(
             collection_name=self.config.collection_name,
-            data=[query_vector],
-            limit=top_k,
-            output_fields=[
-                "chunk_id",
-                "chunk_index",
-                "source_path",
-                "document_title",
-                "heading_path_json",
-                "heading_path",
-                "content",
-                "content_b64",
-                "token_count",
-                "start_line",
-                "end_line",
-            ],
-            search_params={"metric_type": self.config.metric_type},
+            reqs=[dense_req, sparse_req], ranker=ranker, limit=top_k,
+            output_fields=_output_fields(),
         )
         first_group = raw_results[0] if raw_results else []
         results = [_search_hit_to_result(hit) for hit in first_group]
         return RetrievalResult(
-            query=query,
-            top_k=top_k,
+            query=query, top_k=top_k,
             collection_name=self.config.collection_name,
-            total=len(results),
-            results=results,
+            total=len(results), results=results,
         )
 
 
-def _create_milvus_client(config: MilvusStoreConfig):
-    """延迟导入 pymilvus，避免未安装时影响清洗/切分/向量化功能。"""
+# ── helpers ──────────────────────────────────────────────────────────
 
+def _output_fields() -> list[str]:
+    return [
+        "chunk_id", "chunk_index", "source_path", "document_title",
+        "heading_path_json", "heading_path", "content", "content_b64",
+        "token_count", "start_line", "end_line",
+    ]
+
+
+def _candidate_limit(top_k: int) -> int:
+    configured = get_config_int("RETRIEVAL_CANDIDATE_LIMIT", 0)
+    if configured > 0:
+        return configured
+    return max(top_k * 4, 20)
+
+
+def _dense_weight() -> float:
+    return _config_float("RETRIEVAL_DENSE_WEIGHT", 0.1)
+
+
+def _sparse_weight() -> float:
+    return _config_float("RETRIEVAL_SPARSE_WEIGHT", 0.9)
+
+
+def _config_float(name: str, default: float) -> float:
+    value = get_config_value(name)
+    return float(value) if value else default
+
+
+def _create_milvus_client(config: MilvusStoreConfig):
     try:
         from pymilvus import MilvusClient
     except ImportError as exc:
-        raise MilvusVectorStoreError("Missing pymilvus dependency. Install it with `pip install pymilvus`.") from exc
-
+        raise MilvusVectorStoreError("Missing pymilvus.") from exc
     kwargs: dict[str, Any] = {"uri": config.uri}
     if config.token:
         kwargs["token"] = config.token
@@ -132,7 +169,8 @@ def _create_milvus_client(config: MilvusStoreConfig):
 
 
 def _embedding_to_point(embedding) -> dict[str, Any]:
-    """把内部 ChunkEmbedding 转成 Milvus upsert 所需的数据行。"""
+    heading_text = " > ".join(embedding.heading_path)
+    text = f"{embedding.document_title}\n{heading_text}\n{embedding.content}"
 
     return {
         "id": embedding.chunk_id,
@@ -143,9 +181,10 @@ def _embedding_to_point(embedding) -> dict[str, Any]:
         "document_title": embedding.document_title,
         "heading_path": list(embedding.heading_path),
         "heading_path_json": json.dumps(list(embedding.heading_path), ensure_ascii=True),
-        "heading_path_text": " > ".join(embedding.heading_path),
+        "heading_path_text": heading_text,
         "content": embedding.content,
         "content_b64": base64.b64encode(embedding.content.encode("utf-8")).decode("ascii"),
+        "text": text,
         "token_count": embedding.token_count,
         "start_line": embedding.start_line,
         "end_line": embedding.end_line,
@@ -153,8 +192,6 @@ def _embedding_to_point(embedding) -> dict[str, Any]:
 
 
 def _search_hit_to_result(hit: dict[str, Any]) -> RetrievalSearchResult:
-    """把 Milvus search 的命中行整理为前端检索结果。"""
-
     entity = hit.get("entity") or {}
     raw_score = float(hit.get("distance", hit.get("score", 0.0)) or 0.0)
     return RetrievalSearchResult(
@@ -179,7 +216,6 @@ def _parse_heading_path(entity: dict[str, Any]) -> tuple[str, ...]:
                 return tuple(str(item) for item in decoded)
         except json.JSONDecodeError:
             pass
-
     raw_path = entity.get("heading_path")
     if isinstance(raw_path, list):
         return tuple(str(item) for item in raw_path)
