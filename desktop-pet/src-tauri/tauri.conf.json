@@ -13,10 +13,10 @@
     "windows": [
       {
         "title": "KnowRAG Desktop Pet",
-        "width": 280,
-        "height": 340,
-        "minWidth": 280,
-        "minHeight": 340,
+        "width": 152,
+        "height": 188,
+        "minWidth": 136,
+        "minHeight": 136,
         "resizable": false,
         "decorations": false,
         "transparent": true,

@@ -31,7 +31,7 @@ test("createPetContextMenu builds the native pet menu with chat and scale action
   assert.equal(menu, fakeMenu);
   assert.deepEqual(
     FakeMenu.options.items.map((item) => item.text || item.item),
-    ["打开管理台", "打开聊天", "打开完整聊天", "Separator", "调整大小", "Separator", "退出"],
+    ["打开管理台", "打开输入框", "打开完整聊天", "Separator", "调整大小", "Separator", "退出"],
   );
 
   const scaleSubmenu = FakeMenu.options.items[4];
@@ -66,12 +66,12 @@ test("createPetContextMenu reflects the current chat surface in the toggle label
       exitPet: () => {},
     },
     {
-      chatSurface: "bubble",
+      chatSurface: "light",
       petScale: 1,
     },
   );
 
-  assert.equal(FakeMenu.options.items[1].text, "关闭聊天");
+  assert.equal(FakeMenu.options.items[1].text, "关闭输入框");
 });
 
 test("showPetContextMenu delegates to the native popup API", async () => {

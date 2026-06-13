@@ -1,6 +1,7 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { LogicalPosition, LogicalSize } from "@tauri-apps/api/dpi";
+import { listen } from "@tauri-apps/api/event";
 import { Menu } from "@tauri-apps/api/menu";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { getAllWindows, getCurrentWindow } from "@tauri-apps/api/window";
@@ -14,6 +15,7 @@ import {
   updateAssistantMessage,
 } from "../lib/chatMessages";
 import { streamQuestion } from "../lib/chatStream";
+import { closePetChatWindow, openPetChatWindow, positionPetChatWindow } from "../lib/petChatWindow";
 import { createPetContextMenu, showPetContextMenu } from "../lib/petContextMenu";
 import {
   DEFAULT_PET_SCALE,
@@ -24,13 +26,14 @@ import {
   getPositionKeepingPetAnchor,
 } from "../lib/petScale";
 
-const chatSurface = ref("pet"); // "pet" | "bubble" | "full"
+const chatSurface = ref("pet"); // "pet" | "full"
+const isChatInputOpen = ref(false);
 const question = ref("");
 const messages = ref([]);
 const state = ref("idle");
 const messageArea = ref(null);
-const bubbleMessageArea = ref(null);
 const petCanvas = ref(null);
+const petShell = ref(null);
 const petScale = ref(DEFAULT_PET_SCALE);
 const particles = ref([]);
 const isBouncing = ref(false);
@@ -46,6 +49,9 @@ let isBlinking = false;
 let bounceAmount = 0;
 let lastFrameTime = 0;
 let particleId = 1;
+let unlistenChatSubmit = null;
+let unlistenChatClosed = null;
+let unlistenPetMoved = null;
 
 const SPRITE_W = 16;
 const SPRITE_H = 16;
@@ -83,11 +89,46 @@ onMounted(() => {
   drawPet("normal");
   lastFrameTime = performance.now();
   animationFrame = requestAnimationFrame(tick);
+
+  listen("pet-chat-submit", ({ payload }) => {
+    isChatInputOpen.value = false;
+    void askQuestion(payload?.question || "");
+  }).then((unlisten) => {
+    unlistenChatSubmit = unlisten;
+  }).catch(() => {
+    // Browser dev mode has no Tauri event bus.
+  });
+
+  listen("pet-chat-closed", () => {
+    isChatInputOpen.value = false;
+  }).then((unlisten) => {
+    unlistenChatClosed = unlisten;
+  }).catch(() => {
+    // Browser dev mode has no Tauri event bus.
+  });
+
+  try {
+    getCurrentWindow().onMoved(() => {
+      if (isChatInputOpen.value) void positionChatInput();
+    }).then((unlisten) => {
+      unlistenPetMoved = unlisten;
+    }).catch(() => {
+      // Browser dev mode has no native window move events.
+    });
+  } catch {
+    // Browser dev mode has no native window API.
+  }
 });
 
 onBeforeUnmount(() => {
   if (abortController) abortController.abort();
   if (animationFrame) cancelAnimationFrame(animationFrame);
+  clearTimeout(hoverTimer);
+  clearTimeout(danmakuFadeTimer);
+  if (unlistenChatSubmit) unlistenChatSubmit();
+  if (unlistenChatClosed) unlistenChatClosed();
+  if (unlistenPetMoved) unlistenPetMoved();
+  void closePetChatWindow();
 });
 
 const petStyle = computed(() => {
@@ -100,6 +141,7 @@ const petStyle = computed(() => {
 });
 
 const stateText = {
+  idle: "准备好了",
   thinking: "正在判断问题意图...",
   answering: "正在组织答案...",
   empty: "资料里暂时没有找到答案。",
@@ -111,22 +153,116 @@ const routeText = {
   casual_chat: "普通闲聊",
 };
 
-const bubbleMessages = computed(() => {
-  const all = messages.value;
-  if (all.length === 0) return [];
+const isWorking = computed(() => ["thinking", "answering"].includes(state.value));
+const isFailure = computed(() => ["error"].includes(state.value));
+const isNoResult = computed(() => ["empty"].includes(state.value));
 
-  const result = [];
-  for (let i = all.length - 1; i >= 0; i--) {
-    const msg = all[i];
-    result.unshift(msg);
-    if (msg.role === "user") break;
+// ── Hover bubble (shown below pet in idle mode) ──
+const hoverBubble = ref(false);
+let hoverTimer = null;
+
+function onPetEnter() {
+  if (chatSurface.value !== "pet" || isChatInputOpen.value) return;
+  clearTimeout(hoverTimer);
+  hoverTimer = setTimeout(() => {
+    hoverBubble.value = true;
+  }, 400);
+}
+function onPetLeave() {
+  if (chatSurface.value !== "pet") return;
+  clearTimeout(hoverTimer);
+  hoverTimer = setTimeout(() => {
+    hoverBubble.value = false;
+  }, 600);
+}
+function onBubbleEnter() {
+  clearTimeout(hoverTimer); // keep bubble visible while hovering it
+}
+function onBubbleLeave() {
+  hoverTimer = setTimeout(() => {
+    hoverBubble.value = false;
+  }, 300);
+}
+
+const DANMAKU_MAX_CHARS = 150;
+
+const latestAssistantBubble = computed(() => {
+  for (let i = messages.value.length - 1; i >= 0; i--) {
+    const msg = messages.value[i];
+    if (msg.role === "assistant") return msg;
   }
-  return result;
+  return null;
 });
 
-const bubbleEmptyState = computed(() => bubbleMessages.value.length === 0);
+const isAnswerLong = computed(() => {
+  const content = latestAssistantBubble.value?.content || "";
+  return content.length > DANMAKU_MAX_CHARS;
+});
+
+const danmakuText = computed(() => {
+  const msg = latestAssistantBubble.value;
+  if (!msg) return "";
+  if (msg.errorMessage) return msg.errorMessage;
+  if (!msg.content) return "思考中...";
+  const flat = msg.content.replace(/\s+/g, " ").trim();
+  if (isAnswerLong.value) return flat.slice(0, DANMAKU_MAX_CHARS) + "…";
+  return flat;
+});
+
+// ── Danmaku persistence: stays after closing light chat, fades after 10s ──
+const danmakuVisible = ref(false);
+const danmakuFading = ref(false);
+let danmakuFadeTimer = null;
+
+function showDanmaku() {
+  clearTimeout(danmakuFadeTimer);
+  danmakuFadeTimer = null;
+  danmakuVisible.value = true;
+  danmakuFading.value = false;
+  if (chatSurface.value === "pet") {
+    void resizeWindow();
+  }
+}
+
+function scheduleDanmakuFadeOut() {
+  if (!danmakuVisible.value) return;
+  clearTimeout(danmakuFadeTimer);
+  danmakuFadeTimer = setTimeout(() => {
+    danmakuFading.value = true;
+    // After CSS transition, hide and clean up (only if still in pet mode)
+    danmakuFadeTimer = setTimeout(() => {
+      danmakuVisible.value = false;
+      danmakuFading.value = false;
+      if (chatSurface.value === "pet") {
+        messages.value = [];
+        void resizeWindow();
+      }
+    }, 700);
+  }, 10000);
+}
+
+function cancelDanmakuFade() {
+  clearTimeout(danmakuFadeTimer);
+  danmakuFadeTimer = null;
+  danmakuFading.value = false;
+}
+
+function windowSizeOptions(surface = chatSurface.value) {
+  return {
+    reserveFloatingAnswer: surface === "pet" && danmakuVisible.value,
+  };
+}
+
+// Watch for new assistant bubble → show danmaku
+watch(() => latestAssistantBubble.value, (bubble) => {
+  if (bubble) showDanmaku();
+});
 
 async function setChatSurface(surface) {
+  if (surface === "light") {
+    await openChatInput();
+    return;
+  }
   if (surface === chatSurface.value) return;
 
   // Capture old state before changing chatSurface so we can compute the
@@ -143,42 +279,98 @@ async function setChatSurface(surface) {
 
     const oldAnchor = getPetAnchorOffset(oldSurface, oldScale, oldSize);
 
+    // Compute new window size from the target surface.
+    const newSize = getPetWindowSize(surface, petScale.value, windowSizeOptions(surface));
+    const newAnchor = getPetAnchorOffset(surface, petScale.value, newSize);
+    nextPosition = getPositionKeepingPetAnchor(oldPosition, oldAnchor, newAnchor);
+
     chatSurface.value = surface;
 
-    const newSize = getPetWindowSize(surface, petScale.value);
-    const newAnchor = getPetAnchorOffset(surface, petScale.value, newSize);
+    // ── Danmaku & message lifecycle ──
+    if (surface === "full") {
+      await closeChatInput();
+      cancelDanmakuFade();
+      danmakuVisible.value = false;
+    }
 
-    nextPosition = getPositionKeepingPetAnchor(oldPosition, oldAnchor, newAnchor);
+    await resizeWindow(nextPosition, newSize);
   } catch {
     chatSurface.value = surface;
+    try { await resizeWindow(); } catch { /* ignore */ }
   }
 
-  await resizeWindow(nextPosition);
   if (surface === "full") await scrollMessagesToBottom();
 }
 
 async function toggleChat() {
-  await setChatSurface(chatSurface.value === "pet" ? "bubble" : "pet");
+  if (isChatInputOpen.value) {
+    await closeChatInput();
+  } else if (chatSurface.value === "pet") {
+    await openChatInput();
+  } else {
+    await setChatSurface("pet");
+  }
 }
 
-async function openBubbleChat() {
-  if (chatSurface.value !== "pet") return;
-  bouncePet();
-  await setChatSurface("bubble");
+async function openChatInput() {
+  if (chatSurface.value !== "pet") {
+    await setChatSurface("pet");
+  }
+  hoverBubble.value = false;
+  try {
+    await openPetChatWindow({
+      WebviewWindowClass: WebviewWindow,
+      currentWindow: getCurrentWindow(),
+      petScale: petScale.value,
+      petBounds: petShell.value?.getBoundingClientRect(),
+    });
+    isChatInputOpen.value = true;
+  } catch (error) {
+    appendSystemError(error.message || "无法打开输入框。");
+  }
+}
+
+async function positionChatInput() {
+  try {
+    await positionPetChatWindow({
+      WebviewWindowClass: WebviewWindow,
+      currentWindow: getCurrentWindow(),
+      petScale: petScale.value,
+      petBounds: petShell.value?.getBoundingClientRect(),
+      bringToFront: true,
+    });
+  } catch {
+    // The standalone input window may have been closed independently.
+  }
+}
+
+async function closeChatInput() {
+  try {
+    await closePetChatWindow(WebviewWindow);
+  } catch {
+    // The standalone input window may already be gone.
+  }
+  isChatInputOpen.value = false;
+  hoverBubble.value = false;
 }
 
 async function expandToFull() {
   await setChatSurface("full");
 }
 
+async function expandToFullFromDanmaku() {
+  await setChatSurface("full");
+}
+
 async function closeToPet() {
+  await closeChatInput();
   await setChatSurface("pet");
 }
 
-async function resizeWindow(nextPosition) {
+async function resizeWindow(nextPosition, nextSize) {
   try {
     const window = getCurrentWindow();
-    const size = getPetWindowSize(chatSurface.value, petScale.value);
+    const size = nextSize || getPetWindowSize(chatSurface.value, petScale.value, windowSizeOptions());
 
     let position;
     if (nextPosition) {
@@ -218,7 +410,7 @@ async function setPetScale(nextScale) {
 
     petScale.value = nextScale;
 
-    const newSize = getPetWindowSize(surface, nextScale);
+    const newSize = getPetWindowSize(surface, nextScale, windowSizeOptions(surface));
     const newAnchor = getPetAnchorOffset(surface, nextScale, newSize);
 
     nextPosition = getPositionKeepingPetAnchor(oldPosition, oldAnchor, newAnchor);
@@ -269,7 +461,7 @@ async function openContextMenu(e) {
       setScale: setPetScale,
       exitPet,
     }, {
-      chatSurface: chatSurface.value,
+      chatSurface: isChatInputOpen.value ? "light" : chatSurface.value,
       petScale: petScale.value,
     });
     await showPetContextMenu(menu);
@@ -304,15 +496,25 @@ function onPetClick() {
     dragState.value.moved = false;
     return;
   }
-  openBubbleChat();
+  if (chatSurface.value === "pet") {
+    bouncePet();
+    openChatInput();
+  } else {
+    closeToPet();
+  }
 }
 
-async function askQuestion() {
-  const normalized = question.value.trim();
+async function askQuestion(rawQuestion = question.value) {
+  const normalized = rawQuestion.trim();
   if (!normalized || state.value === "thinking" || state.value === "answering") return;
 
   if (abortController) abortController.abort();
   abortController = new AbortController();
+
+  // Pet-mode quick asks are one-shot; full mode keeps the conversation history.
+  if (chatSurface.value !== "full") {
+    messages.value = [];
+  }
 
   const userMessage = createUserMessage(nextMessageId("u"), normalized);
   const assistantMessage = createAssistantMessage(nextMessageId("a"));
@@ -338,6 +540,7 @@ async function askQuestion() {
       status: "error",
       errorMessage: error.message || "无法连接 KnowRAG 后端。",
     });
+    if (chatSurface.value === "pet") scheduleDanmakuFadeOut();
     await scrollMessagesToBottom();
   } finally {
     if (abortController && !abortController.signal.aborted) abortController = null;
@@ -360,8 +563,12 @@ function handleStreamEvent(messageId, event, data) {
     messages.value = updateAssistantMessage(messages.value, messageId, {
       sources: data.sources || [],
     });
+    if (!(data.sources || []).length && state.value !== "error") {
+      state.value = "empty";
+    }
   }
   if (event === "delta") {
+    state.value = "answering";
     messages.value = appendAssistantDelta(messages.value, messageId, data.content || "");
     scrollMessagesToBottom();
   }
@@ -370,6 +577,7 @@ function handleStreamEvent(messageId, event, data) {
     messages.value = updateAssistantMessage(messages.value, messageId, {
       status: data.state || "success",
     });
+    if (chatSurface.value === "pet") scheduleDanmakuFadeOut();
   }
   if (event === "error") {
     state.value = "error";
@@ -377,6 +585,7 @@ function handleStreamEvent(messageId, event, data) {
       status: "error",
       errorMessage: data.message || "问答服务发生错误。",
     });
+    if (chatSurface.value === "pet") scheduleDanmakuFadeOut();
   }
 }
 
@@ -402,7 +611,6 @@ function nextMessageId(prefix) {
 async function scrollMessagesToBottom() {
   await nextTick();
   if (messageArea.value) messageArea.value.scrollTop = messageArea.value.scrollHeight;
-  if (bubbleMessageArea.value) bubbleMessageArea.value.scrollTop = bubbleMessageArea.value.scrollHeight;
 }
 
 function getSpriteForMood(mood) {
@@ -483,58 +691,24 @@ function spawnParticle(label) {
 </script>
 
 <template>
-  <main class="pet-window" :class="chatSurface">
-    <section v-if="chatSurface === 'bubble'" class="short-chat arrow-right">
-      <div class="sc-header">
-        <span class="sc-header-title">🐶 旺财 · 轻聊</span>
-        <div class="sc-header-actions">
-          <button class="sc-btn expand-btn" type="button" title="展开完整聊天" @click="expandToFull">⤢</button>
-          <button class="sc-btn" type="button" title="关闭" @click="closeToPet">✕</button>
-        </div>
-      </div>
+  <main class="pet-window" :class="chatSurface" :style="petStyle">
+    <!-- ── Floating danmaku answer (persists after closing light chat) ── -->
+    <span
+      v-show="danmakuVisible && chatSurface !== 'full'"
+      class="light-answer-float"
+      :class="{
+        'light-answer-error': latestAssistantBubble?.errorMessage,
+        'light-answer-typing': !latestAssistantBubble?.content && !latestAssistantBubble?.errorMessage,
+        'light-answer-long': isAnswerLong,
+        'danmaku-fading': danmakuFading,
+      }"
+      @click="isAnswerLong ? expandToFullFromDanmaku() : undefined"
+    >
+      <span class="light-answer-text">{{ danmakuText }}</span>
+      <span v-if="isAnswerLong" class="light-answer-expand">展开全文 →</span>
+    </span>
 
-      <div ref="bubbleMessageArea" class="sc-messages">
-        <div v-if="bubbleEmptyState" class="sc-msg assistant">
-          <div class="sc-bubble">汪！有什么想问的？</div>
-        </div>
-
-        <div v-for="message in bubbleMessages" :key="message.id" class="sc-msg" :class="message.role">
-          <div v-if="message.role === 'user'" class="sc-bubble">{{ message.content }}</div>
-
-          <template v-else>
-            <div v-if="message.content" class="sc-bubble">{{ message.content }}</div>
-            <div v-else-if="message.errorMessage" class="sc-bubble sc-error">{{ message.errorMessage }}</div>
-            <div v-else class="sc-bubble sc-typing">{{ stateText[message.status] || "正在处理..." }}</div>
-            <div v-if="message.content && message.errorMessage" class="sc-bubble sc-error follow-up-error">
-              {{ message.errorMessage }}
-            </div>
-
-            <div v-if="message.routeIntent || message.sources?.length" class="kb-info">
-              <span v-if="message.routeIntent">{{ routeText[message.routeIntent] || message.routeIntent }}</span>
-              <span v-if="message.sources?.length">引用 {{ message.sources.length }} 条</span>
-            </div>
-          </template>
-        </div>
-      </div>
-
-      <form class="sc-input-row" @submit.prevent="askQuestion">
-        <input
-          v-model="question"
-          class="sc-input"
-          maxlength="200"
-          placeholder="问一句..."
-          @keydown.enter.exact.prevent="askQuestion"
-        />
-        <button
-          class="sc-send"
-          type="submit"
-          :disabled="!question.trim() || state === 'thinking' || state === 'answering'"
-        >
-          ➤
-        </button>
-      </form>
-    </section>
-
+    <!-- ── Full chat panel (only visible in full mode) ── -->
     <section v-if="chatSurface === 'full'" class="full-chat visible">
       <header class="fc-header" data-tauri-drag-region>
         <span class="fc-title">🐶 旺财 · 完整聊天</span>
@@ -606,16 +780,20 @@ function spawnParticle(label) {
       </form>
     </section>
 
+    <!-- ── Pet (always visible — single persistent canvas, never destroyed) ── -->
     <section class="pet-side" :style="petStyle">
       <div
+        ref="petShell"
         class="pet-shell"
-        :class="{ bouncing: isBouncing }"
+        :class="{ bouncing: isBouncing, thinking: isWorking, error: isFailure, empty: isNoResult }"
         role="button"
         aria-label="KnowRAG 像素小狗桌宠"
         tabindex="0"
         @mousedown="onPetMouseDown($event)"
         @click="onPetClick"
         @contextmenu.prevent.stop="openContextMenu"
+        @mouseenter="onPetEnter"
+        @mouseleave="onPetLeave"
       >
         <div class="pet-inner">
           <canvas ref="petCanvas" class="pet-canvas" width="16" height="16"></canvas>
@@ -626,5 +804,15 @@ function spawnParticle(label) {
         </div>
       </div>
     </section>
+
+    <!-- ── Faint hover bubble shortcut (pet mode only, relative to window) ── -->
+    <div
+      v-show="chatSurface === 'pet' && !isChatInputOpen"
+      class="pet-hover-bubble"
+      :class="{ visible: hoverBubble }"
+      @mouseenter="onBubbleEnter"
+      @mouseleave="onBubbleLeave"
+      @click.stop="setChatSurface('light')"
+    >💬 问一问</div>
   </main>
 </template>

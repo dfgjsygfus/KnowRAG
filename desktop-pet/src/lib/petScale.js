@@ -4,11 +4,11 @@ export const PET_BASE_SIZE = 80;
 
 const DEFAULT_EXPANDED_WIDTH = 588;
 const DEFAULT_EXPANDED_HEIGHT = 540;
-const DEFAULT_BUBBLE_WIDTH = 478;
-const DEFAULT_BUBBLE_HEIGHT = 390;
+const DEFAULT_LIGHT_WIDTH = 300;
+const DEFAULT_LIGHT_HEIGHT = 380;
 const COLLAPSED_CHROME = 72;
+const HOVER_HINT_CHROME = 108;
 const EXPANDED_WIDTH_CHROME = 508;
-const BUBBLE_WIDTH_CHROME = 398;
 
 export function getNextPetScale(currentScale, direction) {
   const currentIndex = PET_SCALE_STEPS.findIndex((scale) => scale >= currentScale);
@@ -23,7 +23,7 @@ export function getPetSize(scale) {
   return Math.round(PET_BASE_SIZE * scale);
 }
 
-export function getPetWindowSize(chatSurface, scale) {
+export function getPetWindowSize(chatSurface, scale, options = {}) {
   const petSize = getPetSize(scale);
 
   if (chatSurface === "full") {
@@ -33,17 +33,24 @@ export function getPetWindowSize(chatSurface, scale) {
     };
   }
 
-  if (chatSurface === "bubble") {
+  if (chatSurface === "light") {
     return {
-      width: Math.max(DEFAULT_BUBBLE_WIDTH, petSize + BUBBLE_WIDTH_CHROME),
-      height: DEFAULT_BUBBLE_HEIGHT,
+      width: Math.max(DEFAULT_LIGHT_WIDTH, petSize + 220),
+      height: Math.max(DEFAULT_LIGHT_HEIGHT, petSize + 300),
+    };
+  }
+
+  if (chatSurface === "pet" && options.reserveFloatingAnswer) {
+    return {
+      width: Math.max(DEFAULT_LIGHT_WIDTH, petSize + 220),
+      height: Math.max(DEFAULT_LIGHT_HEIGHT, petSize + 300),
     };
   }
 
   // "pet"
   return {
     width: petSize + COLLAPSED_CHROME,
-    height: petSize + COLLAPSED_CHROME,
+    height: petSize + HOVER_HINT_CHROME,
   };
 }
 
@@ -64,7 +71,17 @@ export function getPetAnchorOffset(surface, scale, windowSize) {
     };
   }
 
-  // bubble or full: pet is on the right side, vertically centered
+  // light: pet is centered horizontally, but sits above vertical centre
+  // because the input row below shifts the flex group centre downward.
+  // pet is offset by -(gap + inputRowHeight) / 2 = -(10 + 34) / 2 = -22 px
+  if (surface === "light") {
+    return {
+      x: windowSize.width / 2,
+      y: windowSize.height / 2 - 22,
+    };
+  }
+
+  // full: pet is on the right side, vertically centered
   return {
     x: windowSize.width - 18 - shellSize / 2,
     y: windowSize.height / 2,

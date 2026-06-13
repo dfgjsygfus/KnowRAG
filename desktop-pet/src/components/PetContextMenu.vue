@@ -55,7 +55,7 @@ onBeforeUnmount(() => {
       </div>
       <div class="ctx-item" @click="sendMenuAction('toggle-chat')">
         <span class="ctx-icon">{{ chatSurface === 'pet' ? '💬' : '🔇' }}</span>
-        {{ chatSurface === 'pet' ? '打开聊天' : '关闭聊天' }}
+        {{ chatSurface === 'pet' ? '打开输入框' : '关闭输入框' }}
       </div>
       <div class="ctx-item" @click="sendMenuAction('open-full')">
         <span class="ctx-icon">📖</span> 打开完整聊天

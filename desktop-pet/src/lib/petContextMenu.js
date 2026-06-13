@@ -13,7 +13,8 @@ const SCALE_ITEMS = [
  * @param {{ chatSurface: string, petScale: number }} state
  */
 export function createPetContextMenu(MenuClass, actions, state) {
-  const toggleText = state.chatSurface === "pet" ? "打开聊天" : "关闭聊天";
+  const toggleText =
+    state.chatSurface === "pet" ? "打开输入框" : "关闭输入框";
 
   return MenuClass.new({
     items: [
