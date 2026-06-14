@@ -6,6 +6,8 @@ import { Menu } from "@tauri-apps/api/menu";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { getAllWindows, getCurrentWindow } from "@tauri-apps/api/window";
 
+import { PET_FRAME_INTERVAL_MS, getPetAnimationFrames } from "../lib/petAnimationFrames";
+import FullChatPanel from "./FullChatPanel.vue";
 import { openAdminWindow } from "../lib/adminWindow";
 import { exitDesktopPet } from "../lib/appLifecycle";
 import {
@@ -17,6 +19,7 @@ import {
 import { streamQuestion } from "../lib/chatStream";
 import { closePetChatWindow, openPetChatWindow, positionPetChatWindow } from "../lib/petChatWindow";
 import { createPetContextMenu, showPetContextMenu } from "../lib/petContextMenu";
+import { computeDanmakuLifespan } from "../lib/danmakuTiming";
 import {
   DEFAULT_PET_SCALE,
   getNextPetScale,
@@ -31,64 +34,28 @@ const isChatInputOpen = ref(false);
 const question = ref("");
 const messages = ref([]);
 const state = ref("idle");
-const messageArea = ref(null);
-const petCanvas = ref(null);
+const fullChatPanel = ref(null);
 const petShell = ref(null);
 const petScale = ref(DEFAULT_PET_SCALE);
 const particles = ref([]);
 const isBouncing = ref(false);
+const petFrameIndex = ref(0);
 const dragState = ref({ moved: false, startX: 0, startY: 0 });
 const topK = 5;
 let abortController = null;
 let nextChatMessageIndex = 1;
-let animationFrame = 0;
-let bobPhase = 0;
-let blinkTimer = 0;
-let blinkDuration = 90;
-let isBlinking = false;
-let bounceAmount = 0;
-let lastFrameTime = 0;
 let particleId = 1;
+let bounceTimer = null;
+let petFrameTimer = null;
 let unlistenChatSubmit = null;
 let unlistenChatClosed = null;
 let unlistenPetMoved = null;
 
-const SPRITE_W = 16;
-const SPRITE_H = 16;
-const PAL = [
-  null,
-  "#FAE3C6",
-  "#E8C9A0",
-  "#C4956A",
-  "#5D3A1A",
-  "#FFFFFF",
-  "#FFB8B8",
-  "#FF8B8B",
-  "#8B5E3C",
-];
-const BASE_SPRITE = [
-  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-  0,0,0,0,0,8,8,0,0,8,8,0,0,0,0,0,
-  0,0,0,3,3,1,1,0,0,1,1,3,3,0,0,0,
-  0,0,3,1,1,1,1,1,1,1,1,1,1,3,0,0,
-  0,0,2,1,1,1,1,1,1,1,1,1,1,2,0,0,
-  0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,
-  0,0,1,1,4,4,1,1,1,4,4,1,1,1,0,0,
-  0,0,1,1,4,5,4,1,1,4,5,4,1,1,0,0,
-  0,0,1,1,4,4,1,1,1,4,4,1,1,1,0,0,
-  0,0,1,6,1,1,1,1,1,1,1,1,6,1,0,0,
-  0,0,1,1,1,1,4,4,4,4,1,1,1,1,0,0,
-  0,0,1,1,1,1,4,5,5,4,1,1,1,1,0,0,
-  0,0,1,1,1,1,1,7,7,1,1,1,1,1,0,0,
-  0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,
-  0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,
-  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-];
-
 onMounted(() => {
-  drawPet("normal");
-  lastFrameTime = performance.now();
-  animationFrame = requestAnimationFrame(tick);
+  petFrameTimer = window.setInterval(() => {
+    const frames = getPetAnimationFrames(isWorking.value);
+    petFrameIndex.value = (petFrameIndex.value + 1) % frames.length;
+  }, PET_FRAME_INTERVAL_MS);
 
   listen("pet-chat-submit", ({ payload }) => {
     isChatInputOpen.value = false;
@@ -122,7 +89,8 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (abortController) abortController.abort();
-  if (animationFrame) cancelAnimationFrame(animationFrame);
+  clearTimeout(bounceTimer);
+  clearInterval(petFrameTimer);
   clearTimeout(hoverTimer);
   clearTimeout(danmakuFadeTimer);
   if (unlistenChatSubmit) unlistenChatSubmit();
@@ -136,7 +104,6 @@ const petStyle = computed(() => {
   return {
     "--pet-size": `${petSize}px`,
     "--pet-shell-size": `${petSize + 36}px`,
-    "--pet-bob-y": "0px",
   };
 });
 
@@ -156,6 +123,12 @@ const routeText = {
 const isWorking = computed(() => ["thinking", "answering"].includes(state.value));
 const isFailure = computed(() => ["error"].includes(state.value));
 const isNoResult = computed(() => ["empty"].includes(state.value));
+const petAnimationFrames = computed(() => getPetAnimationFrames(isWorking.value));
+const petFrameImage = computed(() => petAnimationFrames.value[petFrameIndex.value % petAnimationFrames.value.length]);
+
+watch(isWorking, () => {
+  petFrameIndex.value = 0;
+});
 
 // ── Hover bubble (shown below pet in idle mode) ──
 const hoverBubble = ref(false);
@@ -209,10 +182,14 @@ const danmakuText = computed(() => {
   return flat;
 });
 
-// ── Danmaku persistence: stays after closing light chat, fades after 10s ──
+// ── Danmaku persistence: stays after closing light chat, fades after a content-aware delay ──
 const danmakuVisible = ref(false);
 const danmakuFading = ref(false);
 let danmakuFadeTimer = null;
+let danmakuLifespanMs = 0;
+let danmakuFadeDeadline = 0;
+let danmakuRemainingMs = 0;
+let danmakuHovering = false;
 
 function showDanmaku() {
   clearTimeout(danmakuFadeTimer);
@@ -226,7 +203,22 @@ function showDanmaku() {
 
 function scheduleDanmakuFadeOut() {
   if (!danmakuVisible.value) return;
+  const content = latestAssistantBubble.value?.content
+    || latestAssistantBubble.value?.errorMessage
+    || "";
+  danmakuLifespanMs = computeDanmakuLifespan(content);
+  danmakuRemainingMs = danmakuLifespanMs;
+  if (danmakuHovering) {
+    clearTimeout(danmakuFadeTimer);
+    danmakuFadeTimer = null;
+    return;
+  }
+  startDanmakuFadeTimer(danmakuLifespanMs);
+}
+
+function startDanmakuFadeTimer(delayMs) {
   clearTimeout(danmakuFadeTimer);
+  danmakuFadeDeadline = Date.now() + delayMs;
   danmakuFadeTimer = setTimeout(() => {
     danmakuFading.value = true;
     // After CSS transition, hide and clean up (only if still in pet mode)
@@ -238,13 +230,32 @@ function scheduleDanmakuFadeOut() {
         void resizeWindow();
       }
     }, 700);
-  }, 10000);
+  }, delayMs);
 }
 
 function cancelDanmakuFade() {
   clearTimeout(danmakuFadeTimer);
   danmakuFadeTimer = null;
   danmakuFading.value = false;
+  danmakuRemainingMs = 0;
+  danmakuFadeDeadline = 0;
+}
+
+function onDanmakuEnter() {
+  danmakuHovering = true;
+  if (danmakuFadeTimer && danmakuFadeDeadline) {
+    danmakuRemainingMs = Math.max(0, danmakuFadeDeadline - Date.now());
+  }
+  clearTimeout(danmakuFadeTimer);
+  danmakuFadeTimer = null;
+  danmakuFading.value = false;
+}
+
+function onDanmakuLeave() {
+  danmakuHovering = false;
+  if (!danmakuVisible.value) return;
+  const delay = danmakuRemainingMs > 0 ? danmakuRemainingMs : danmakuLifespanMs;
+  startDanmakuFadeTimer(delay);
 }
 
 function windowSizeOptions(surface = chatSurface.value) {
@@ -610,74 +621,16 @@ function nextMessageId(prefix) {
 
 async function scrollMessagesToBottom() {
   await nextTick();
-  if (messageArea.value) messageArea.value.scrollTop = messageArea.value.scrollHeight;
-}
-
-function getSpriteForMood(mood) {
-  const sprite = BASE_SPRITE.slice();
-  if (mood === "blink") {
-    [
-      [6,4],[6,5],[6,9],[6,10],
-      [7,4],[7,5],[7,6],[7,9],[7,10],[7,11],
-      [8,4],[8,5],[8,9],[8,10],
-    ].forEach(([row, col]) => {
-      const index = row * SPRITE_W + col;
-      if (sprite[index] === 4 || sprite[index] === 5) {
-        sprite[index] = row === 7 && (col === 5 || col === 10) ? 4 : 1;
-      }
-    });
-  }
-  if (mood === "happy") {
-    sprite[7 * SPRITE_W + 5] = 5;
-    sprite[7 * SPRITE_W + 10] = 5;
-    sprite[12 * SPRITE_W + 7] = 7;
-    sprite[12 * SPRITE_W + 8] = 7;
-  }
-  return sprite;
-}
-
-function drawPet(mood) {
-  const canvas = petCanvas.value;
-  if (!canvas) return;
-  const ctx = canvas.getContext("2d");
-  const sprite = getSpriteForMood(mood);
-  ctx.clearRect(0, 0, SPRITE_W, SPRITE_H);
-  for (let i = 0; i < SPRITE_W * SPRITE_H; i += 1) {
-    const colorIndex = sprite[i];
-    if (!colorIndex) continue;
-    ctx.fillStyle = PAL[colorIndex];
-    ctx.fillRect(i % SPRITE_W, Math.floor(i / SPRITE_W), 1, 1);
-  }
-}
-
-function tick(now) {
-  const dt = Math.min((now - lastFrameTime) / 1000, 0.2);
-  lastFrameTime = now;
-
-  bobPhase = (bobPhase + dt * 3) % (Math.PI * 2);
-  if (bounceAmount > 0) bounceAmount = Math.max(0, bounceAmount - dt * 4);
-  isBouncing.value = bounceAmount > 0;
-
-  blinkTimer += dt * 60;
-  if (blinkTimer > blinkDuration) {
-    isBlinking = !isBlinking;
-    blinkTimer = 0;
-    blinkDuration = isBlinking ? 3 + Math.random() * 5 : 60 + Math.random() * 180;
-  }
-
-  const canvas = petCanvas.value;
-  if (canvas) {
-    const bobY = Math.sin(bobPhase) * 2 - bounceAmount * 14;
-    canvas.closest(".pet-shell")?.style.setProperty("--pet-bob-y", `${bobY}px`);
-  }
-
-  drawPet(isBlinking ? "blink" : bounceAmount > 0.3 ? "happy" : "normal");
-  animationFrame = requestAnimationFrame(tick);
+  fullChatPanel.value?.scrollToBottom?.();
 }
 
 function bouncePet() {
-  bounceAmount = 1;
-  spawnParticle("💗");
+  clearTimeout(bounceTimer);
+  isBouncing.value = true;
+  bounceTimer = window.setTimeout(() => {
+    isBouncing.value = false;
+  }, 520);
+  spawnParticle("✦");
 }
 
 function spawnParticle(label) {
@@ -702,6 +655,8 @@ function spawnParticle(label) {
         'light-answer-long': isAnswerLong,
         'danmaku-fading': danmakuFading,
       }"
+      @mouseenter="onDanmakuEnter"
+      @mouseleave="onDanmakuLeave"
       @click="isAnswerLong ? expandToFullFromDanmaku() : undefined"
     >
       <span class="light-answer-text">{{ danmakuText }}</span>
@@ -709,85 +664,32 @@ function spawnParticle(label) {
     </span>
 
     <!-- ── Full chat panel (only visible in full mode) ── -->
-    <section v-if="chatSurface === 'full'" class="full-chat visible">
-      <header class="fc-header" data-tauri-drag-region>
-        <span class="fc-title">🐶 旺财 · 完整聊天</span>
-        <button class="fc-close" type="button" aria-label="关闭" @click="closeToPet">✕</button>
-      </header>
+    <FullChatPanel
+      v-if="chatSurface === 'full'"
+      ref="fullChatPanel"
+      v-model:question="question"
+      :messages="messages"
+      :state="state"
+      :state-text="stateText"
+      :route-text="routeText"
+      @submit="askQuestion"
+      @close="closeToPet"
+    />
 
-      <div ref="messageArea" class="fc-messages">
-        <div v-if="messages.length === 0" class="fc-msg assistant">
-          <div class="fc-avatar assistant-avatar">🐶</div>
-          <div class="fc-bubble">汪！欢迎来到完整聊天，这里可以连续对话，引用来源也能展开查看哦。</div>
-        </div>
-
-        <article v-for="message in messages" :key="message.id" class="fc-msg" :class="message.role">
-          <div class="fc-avatar" :class="message.role === 'assistant' ? 'assistant-avatar' : 'user-avatar'">
-            {{ message.role === "assistant" ? "🐶" : "👤" }}
-          </div>
-          <div class="fc-bubble-wrap">
-            <div class="fc-bubble">
-              <p v-if="message.role === 'user'" class="fc-text">{{ message.content }}</p>
-
-              <template v-else>
-                <p v-if="message.content" class="fc-text">{{ message.content }}</p>
-                <p v-else-if="message.errorMessage" class="fc-text fc-error">{{ message.errorMessage }}</p>
-                <p v-else class="fc-text fc-typing">{{ stateText[message.status] || "正在处理..." }}</p>
-                <p v-if="message.content && message.errorMessage" class="fc-text fc-error follow-up-error">
-                  {{ message.errorMessage }}
-                </p>
-              </template>
-            </div>
-
-            <div v-if="message.role === 'assistant' && (message.routeIntent || message.sources?.length)" class="fc-meta">
-              <span v-if="message.routeIntent">{{ routeText[message.routeIntent] || message.routeIntent }}</span>
-              <span v-if="message.sources?.length">引用 {{ message.sources.length }} 条</span>
-            </div>
-
-            <details v-if="message.role === 'assistant' && message.sources?.length" class="fc-refs">
-              <summary>📚 展开引用来源</summary>
-              <div class="fc-refs-body">
-                <div v-for="source in message.sources" :key="source.chunk_id" class="fc-ref-item">
-                  <strong>[{{ source.citation }}] {{ source.document_title || source.source_path }}</strong>
-                  <small>{{ Number(source.score || 0).toFixed(3) }}</small>
-                  <p>
-                    {{ (source.heading_path || []).join(" > ") || "无标题" }} ·
-                    L{{ source.start_line }}-{{ source.end_line }}
-                  </p>
-                  <p>{{ source.content }}</p>
-                </div>
-              </div>
-            </details>
-          </div>
-        </article>
-      </div>
-
-      <form class="fc-input-row" @submit.prevent="askQuestion">
-        <input
-          v-model="question"
-          class="fc-input"
-          maxlength="500"
-          placeholder="输入消息..."
-          @keydown.enter.exact.prevent="askQuestion"
-        />
-        <button
-          class="fc-send"
-          type="submit"
-          :disabled="!question.trim() || state === 'thinking' || state === 'answering'"
-        >
-          发送
-        </button>
-      </form>
-    </section>
-
-    <!-- ── Pet (always visible — single persistent canvas, never destroyed) ── -->
+    <!-- ── Pet (always visible — persistent frame image, never destroyed) ── -->
     <section class="pet-side" :style="petStyle">
       <div
         ref="petShell"
         class="pet-shell"
-        :class="{ bouncing: isBouncing, thinking: isWorking, error: isFailure, empty: isNoResult }"
+        :class="{
+          idle: !isWorking && !isFailure && !isNoResult,
+          bouncing: isBouncing,
+          thinking: isWorking,
+          error: isFailure,
+          empty: isNoResult,
+        }"
         role="button"
-        aria-label="KnowRAG 像素小狗桌宠"
+        aria-label="KnowRAG 桌宠"
         tabindex="0"
         @mousedown="onPetMouseDown($event)"
         @click="onPetClick"
@@ -796,7 +698,7 @@ function spawnParticle(label) {
         @mouseleave="onPetLeave"
       >
         <div class="pet-inner">
-          <canvas ref="petCanvas" class="pet-canvas" width="16" height="16"></canvas>
+          <img class="pet-character" :src="petFrameImage" alt="" draggable="false" />
           <div class="pet-shadow"></div>
         </div>
         <div class="pet-particles">
