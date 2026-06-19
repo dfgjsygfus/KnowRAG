@@ -5,7 +5,7 @@ import { getPetAnchorOffset, getPetSize } from "./petScale.js";
 
 export const PET_CHAT_WINDOW_LABEL = "pet-chat-input";
 export const PET_CHAT_WINDOW_WIDTH = 300;
-export const PET_CHAT_WINDOW_HEIGHT = 56;
+export const PET_CHAT_WINDOW_HEIGHT = 80;
 const PET_CHAT_GAP = 8;
 
 export function createPetChatWindowUrl() {

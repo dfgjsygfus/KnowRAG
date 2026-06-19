@@ -21,7 +21,7 @@ class AdminFrontendTest(unittest.TestCase):
         upload_block = script[script.index("function handleFiles"):script.index("async function indexFile")]
         self.assertIn("await loadDocuments();", upload_block)
         self.assertNotIn("files.unshift(normalizeDocument(document));", upload_block)
-        self.assertIn("document.deduplicated", upload_block)
+        self.assertIn("doc.deduplicated", upload_block)
 
     def test_admin_console_exposes_chat_model_settings_view(self):
         html = ADMIN_HTML.read_text(encoding="utf-8")

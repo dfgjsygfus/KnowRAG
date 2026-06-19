@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Permissions for the KnowRAG desktop pet main window",
-  "windows": ["main", "pet-chat-input", "pet-context-menu"],
+  "windows": ["main", "pet-chat-input", "pet-context-menu", "admin"],
   "permissions": [
     "core:default",
     "core:menu:default",

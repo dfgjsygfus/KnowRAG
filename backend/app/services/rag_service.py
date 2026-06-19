@@ -64,6 +64,7 @@ async def stream_rag_answer(
 def build_rag_messages(question: str, results: list[RetrievalSearchResult]) -> list[dict[str, str]]:
     """Build a grounded single-turn prompt with numbered sources."""
 
+    results = _prioritize_matching_chunks(question, results)
     contexts = []
     for index, result in enumerate(results, start=1):
         heading = " > ".join(result.heading_path) or "无"
@@ -116,9 +117,36 @@ def _source_payload(result: RetrievalSearchResult, citation: int) -> dict[str, A
         "source_path": result.source_path,
         "heading_path": list(result.heading_path),
         "content": result.content,
+        "excerpt": _make_excerpt(result.content),
         "start_line": result.start_line,
         "end_line": result.end_line,
     }
+
+
+def _make_excerpt(content: str, max_length: int = 600) -> str:
+    """从 chunk 中提取摘要，保留完整段落，避免展示冗长代码块。"""
+    if len(content) <= max_length:
+        return content
+
+    # 按段落拆分，尽量保留完整段落
+    paragraphs = content.split("\n\n")
+    excerpt_parts: list[str] = []
+    total = 0
+    for p in paragraphs:
+        p_len = len(p)
+        if total + p_len + 2 > max_length:
+            if not excerpt_parts:
+                # 第一个段落就超限，截断到句子边界
+                return p[:max_length].rsplit("。", 1)[0] + "。" if "。" in p[:max_length] else p[:max_length]
+            break
+        excerpt_parts.append(p)
+        total += p_len + 2
+
+    excerpt = "\n\n".join(excerpt_parts).strip()
+    # 如果后面还有内容，提示截断
+    if len(excerpt) < len(content):
+        excerpt += "\n\n...（内容已截断，完整内容请查看原文）"
+    return excerpt
 
 
 def _route_payload(route: QueryRoute) -> dict[str, Any]:
@@ -128,6 +156,23 @@ def _route_payload(route: QueryRoute) -> dict[str, Any]:
         "reason": route.reason,
         "method": route.method,
     }
+
+
+def _prioritize_matching_chunks(
+    question: str,
+    results: list[RetrievalSearchResult],
+) -> list[RetrievalSearchResult]:
+    """当问题包含"总结"、"概述"等明确章节意图时，把对应标题的 chunk 提前。"""
+
+    keywords = [kw for kw in ["总结", "概述", "核心职责", "关键输出"] if kw in question]
+    if not keywords:
+        return results
+
+    def _match_score(result: RetrievalSearchResult) -> int:
+        heading_text = " > ".join(result.heading_path)
+        return sum(1 for kw in keywords if kw in heading_text)
+
+    return sorted(results, key=_match_score, reverse=True)
 
 
 def _configured_min_score() -> float:

@@ -16,6 +16,8 @@ class FakeMilvusClient:
         self.created = []
         self.upserts = []
         self.deletes = []
+        self.loaded = []
+        self.dropped = []
 
     def create_schema(self, **kwargs):
         return FakeSchema(kwargs)
@@ -26,9 +28,39 @@ class FakeMilvusClient:
     def has_collection(self, collection_name):
         return collection_name in self.collections
 
+    def describe_collection(self, collection_name):
+        if collection_name not in self.collections:
+            return {"fields": []}
+        return {
+            "fields": [
+                {"name": "id"},
+                {"name": "vector"},
+                {"name": "text"},
+                {"name": "sparse_bm25"},
+                {"name": "chunk_id"},
+                {"name": "chunk_index"},
+                {"name": "source_path"},
+                {"name": "document_title"},
+                {"name": "heading_path_json"},
+                {"name": "heading_path"},
+                {"name": "content"},
+                {"name": "content_b64"},
+                {"name": "token_count"},
+                {"name": "start_line"},
+                {"name": "end_line"},
+            ]
+        }
+
     def create_collection(self, **kwargs):
         self.created.append(kwargs)
         self.collections.add(kwargs["collection_name"])
+
+    def load_collection(self, collection_name):
+        self.loaded.append(collection_name)
+
+    def drop_collection(self, collection_name):
+        self.dropped.append(collection_name)
+        self.collections.discard(collection_name)
 
     def upsert(self, collection_name, data):
         self.upserts.append({"collection_name": collection_name, "data": data})
@@ -117,7 +149,8 @@ class FakeSchema:
         self.fields = []
         self.functions = []
 
-    def add_field(self, name, data_type, **kwargs):
+    def add_field(self, name, data_type=None, datatype=None, **kwargs):
+        data_type = data_type if data_type is not None else datatype
         self.fields.append({"name": name, "data_type": data_type, **kwargs})
 
     def add_function(self, function):

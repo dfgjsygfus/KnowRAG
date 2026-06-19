@@ -11,3 +11,20 @@
 {"id":"proj-005","question":"项目的核心能力有哪些","answerable":true,"expected_source_paths":["frontend-upload/1.1 项目定位与核心能力.md"],"expected_heading_keywords":["核心能力拆解"]}
 {"id":"outside-001","question":"如何做红烧肉","answerable":false}
 {"id":"outside-002","question":"2024年奥运会在哪里举办","answerable":false}
+{"id":"qa-007","question":"把项目经历讲成流水账为什么会影响面试表现","answerable":true,"expected_source_paths":["frontend-upload/面试准备.md"],"expected_heading_keywords":["雷区","凉经"]}
+{"id":"qa-008","question":"STAR-R答题法里每一步分别起什么作用","answerable":true,"expected_source_paths":["frontend-upload/面试准备.md"],"expected_heading_keywords":["STAR-R","面试项目"]}
+{"id":"qa-009","question":"自我介绍怎样突出自己的核心优势和岗位匹配度","answerable":true,"expected_source_paths":["frontend-upload/面试准备.md"],"expected_heading_keywords":["自我介绍","核心"]}
+{"id":"qa-010","question":"面试官问转专业原因时应该怎么解释比较稳妥","answerable":true,"expected_source_paths":["frontend-upload/面试准备.md"],"expected_heading_keywords":["转专业"]}
+{"id":"qa-011","question":"面试开始前五分钟应该检查哪些内容","answerable":true,"expected_source_paths":["frontend-upload/面试准备.md"],"expected_heading_keywords":["Checklist","开场"]}
+{"id":"qa-012","question":"软实力类问题可以套用什么结构来回答","answerable":true,"expected_source_paths":["frontend-upload/面试准备.md"],"expected_heading_keywords":["软实力场景题模板"]}
+{"id":"proj-006","question":"双模式检索为什么要同时结合向量检索和关键词检索","answerable":true,"expected_source_paths":["frontend-upload/1.1 项目定位与核心能力.md"],"expected_heading_keywords":["双模式","信息检索"]}
+{"id":"proj-007","question":"LangGraph在系统里主要负责任务节点和工作流编排吗","answerable":true,"expected_source_paths":["frontend-upload/1.1 项目定位与核心能力.md"],"expected_heading_keywords":["LangGraph","工作流"]}
+{"id":"proj-008","question":"安全沙箱机制是如何降低工具执行风险的","answerable":true,"expected_source_paths":["frontend-upload/1.1 项目定位与核心能力.md"],"expected_heading_keywords":["沙箱","执行"]}
+{"id":"proj-009","question":"Source Tracing怎样让回答能够追溯到原始资料","answerable":true,"expected_source_paths":["frontend-upload/1.1 项目定位与核心能力.md"],"expected_heading_keywords":["信源追溯","Source Tracing"]}
+{"id":"proj-010","question":"这个项目的核心能力拆解包括哪些部分","answerable":true,"expected_source_paths":["frontend-upload/1.1 项目定位与核心能力.md"],"expected_heading_keywords":["核心能力拆解"]}
+{"id":"proj-011","question":"项目如何保证检索到的信息可以被溯源和核查","answerable":true,"expected_source_paths":["frontend-upload/1.1 项目定位与核心能力.md"],"expected_heading_keywords":["信源追溯","Source Tracing"]}
+{"id":"outside-003","question":"今天上海天气怎么样","answerable":false}
+{"id":"outside-004","question":"帮我写一首关于猫的七言绝句","answerable":false}
+{"id":"outside-005","question":"Python列表推导式的语法是什么","answerable":false}
+{"id":"outside-006","question":"Windows怎么修改DNS服务器","answerable":false}
+{"id":"outside-007","question":"火星到地球的平均距离是多少","answerable":false}

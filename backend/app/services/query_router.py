@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import math
 import re
@@ -78,7 +79,8 @@ async def _embedding_similarity(
         intent_vectors: dict[QueryIntent, list[float]] = {}
         for intent, description in _INTENT_DESCRIPTIONS.items():
             if intent not in _intent_embeddings_cache:
-                resp = client.embed_texts(
+                resp = await asyncio.to_thread(
+                    client.embed_texts,
                     [description],
                     EmbeddingConfig(
                         model=get_config_value("SILICONFLOW_EMBEDDING_MODEL", "Qwen/Qwen3-VL-Embedding-8B"),
@@ -89,7 +91,8 @@ async def _embedding_similarity(
             intent_vectors[intent] = _intent_embeddings_cache[intent]
 
         # 获取 query embedding
-        resp = client.embed_texts(
+        resp = await asyncio.to_thread(
+            client.embed_texts,
             [query],
             EmbeddingConfig(
                 model=get_config_value("SILICONFLOW_EMBEDDING_MODEL", "Qwen/Qwen3-VL-Embedding-8B"),

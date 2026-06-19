@@ -1,6 +1,8 @@
 <script setup>
 import { ref } from "vue";
 
+import { formatAssistantContent, renderMarkdown, excerptText } from "../lib/markdown.js";
+
 const props = defineProps({
   messages: { type: Array, required: true },
   question: { type: String, required: true },
@@ -19,6 +21,10 @@ function submitQuestion() {
 
 function updateQuestion(event) {
   emit("update:question", event.target.value);
+}
+
+function renderedAssistantContent(content) {
+  return renderMarkdown(formatAssistantContent(content));
 }
 
 defineExpose({
@@ -49,7 +55,7 @@ defineExpose({
           <div class="fc-bubble">
             <p v-if="message.role === 'user'" class="fc-text">{{ message.content }}</p>
             <template v-else>
-              <p v-if="message.content" class="fc-text">{{ message.content }}</p>
+              <div v-if="message.content" class="fc-text markdown-body" v-html="renderedAssistantContent(message.content)" />
               <p v-else-if="message.errorMessage" class="fc-text fc-error">{{ message.errorMessage }}</p>
               <p v-else class="fc-text fc-typing">{{ stateText[message.status] || "正在处理..." }}</p>
               <p v-if="message.content && message.errorMessage" class="fc-text fc-error follow-up-error">
@@ -67,13 +73,19 @@ defineExpose({
             <summary>展开引用来源</summary>
             <div class="fc-refs-body">
               <div v-for="source in message.sources" :key="source.chunk_id" class="fc-ref-item">
-                <strong>[{{ source.citation }}] {{ source.document_title || source.source_path }}</strong>
-                <small>{{ Number(source.score || 0).toFixed(3) }}</small>
-                <p>
+                <div class="fc-ref-header">
+                  <strong>[{{ source.citation }}] {{ source.document_title || source.source_path }}</strong>
+                  <small>{{ Number(source.score || 0).toFixed(3) }}</small>
+                </div>
+                <p class="fc-ref-location">
                   {{ (source.heading_path || []).join(" > ") || "无标题" }} ·
                   L{{ source.start_line }}-{{ source.end_line }}
                 </p>
-                <p>{{ source.content }}</p>
+                <p class="fc-ref-excerpt">{{ excerptText(source.content) }}</p>
+                <details v-if="source.content && source.content.length > excerptText(source.content).length" class="fc-ref-full">
+                  <summary>查看完整引用</summary>
+                  <div class="markdown-body" v-html="renderMarkdown(source.content)" />
+                </details>
               </div>
             </div>
           </details>

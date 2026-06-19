@@ -5,18 +5,30 @@ let selectedIndex = -1;
 let chatSettings = null;
 
 const uploadZone = document.getElementById("upload-zone");
+const uploadIcon = document.getElementById("upload-icon");
+const uploadPrompt = document.getElementById("upload-prompt");
+const uploadProgress = document.getElementById("upload-progress");
+const uploadProgressText = document.getElementById("upload-progress-text");
+const uploadProgressPercent = document.getElementById("upload-progress-percent");
+const uploadProgressBar = document.getElementById("upload-progress-bar");
 const fileInput = document.getElementById("file-input");
 const fileTableBody = document.getElementById("file-table-body");
 const emptyState = document.getElementById("empty-state");
 const fileSearch = document.getElementById("file-search");
+const statusFilter = document.getElementById("status-filter");
 const detailArea = document.getElementById("detail-area");
 const navDocuments = document.getElementById("nav-documents");
-const navMilvus = document.getElementById("nav-milvus");
 const navSettings = document.getElementById("nav-settings");
 const documentSection = document.querySelector(".main-body > .section-card");
 const statsRow = document.querySelector(".stats-row");
 const headerTitle = document.querySelector(".main-header h1");
+const headerMeta = document.getElementById("header-meta");
+const apiStatus = document.getElementById("api-status");
 const indexAllButton = document.getElementById("btn-index-all");
+const selectAllHeaderCheckbox = document.getElementById("select-all-header");
+const bulkIndexButton = document.getElementById("btn-bulk-index");
+const bulkDeleteButton = document.getElementById("btn-bulk-delete");
+const bulkSelectionCount = document.getElementById("bulk-selection-count");
 
 uploadZone.addEventListener("click", () => fileInput.click());
 uploadZone.addEventListener("dragover", event => {
@@ -34,25 +46,38 @@ fileInput.addEventListener("change", event => {
   fileInput.value = "";
 });
 fileSearch.addEventListener("input", renderFiles);
+statusFilter.addEventListener("change", renderFiles);
 navDocuments.addEventListener("click", showDocumentsView);
-navMilvus.addEventListener("click", showMilvusView);
 navSettings.addEventListener("click", showSettingsView);
 
-document.getElementById("btn-clear").addEventListener("click", () => {
+selectAllHeaderCheckbox.addEventListener("change", () => setAllSelected(selectAllHeaderCheckbox.checked));
+bulkIndexButton.addEventListener("click", bulkIndexSelected);
+bulkDeleteButton.addEventListener("click", bulkDeleteSelected);
+
+document.getElementById("btn-clear").addEventListener("click", async () => {
+  if (!(await confirmDialog("确定删除所有文档及其向量数据吗？此操作不可恢复。"))) return;
   clearDocuments();
 });
 document.getElementById("btn-index-all").addEventListener("click", async () => {
   for (let index = 0; index < files.length; index++) {
     if (!canIndex(files[index])) continue;
-    await indexFile(index);
+    await indexFile(index, { skipDetail: true });
   }
 });
 
 fileTableBody.addEventListener("click", event => {
+  const checkbox = event.target.closest("[data-select]");
   const preview = event.target.closest("[data-preview]");
   const indexButton = event.target.closest("[data-index]");
   const remove = event.target.closest("[data-remove]");
+  const actionToggle = event.target.closest("[data-action-toggle]");
+  const errorDetail = event.target.closest("[data-error]");
 
+  if (checkbox) {
+    const index = Number(checkbox.dataset.select);
+    toggleSelected(index);
+    return;
+  }
   if (preview) {
     showDetail(Number(preview.dataset.preview));
     return;
@@ -63,22 +88,54 @@ fileTableBody.addEventListener("click", event => {
   }
   if (remove) {
     deleteFile(Number(remove.dataset.remove));
+    return;
+  }
+  if (actionToggle) {
+    toggleActionMenu(actionToggle);
+    return;
+  }
+  if (errorDetail) {
+    const index = Number(errorDetail.dataset.error);
+    showToast(files[index]?.error_message || "无错误信息");
   }
 });
 
-function handleFiles(fileList) {
-  Array.from(fileList).forEach(file => {
-    const ext = fileExt(file.name).toLowerCase();
-    if (!["md", "markdown", "txt"].includes(ext)) {
-      showToast("仅支持 .md / .markdown / .txt 文件");
-      return;
-    }
+document.addEventListener("click", event => {
+  if (!event.target.closest(".action-menu")) {
+    closeAllActionMenus();
+  }
+});
 
+async function handleFiles(fileList) {
+  const validFiles = Array.from(fileList).filter(file => {
+    const ext = fileExt(file.name).toLowerCase();
+    if (["md", "markdown", "txt"].includes(ext)) return true;
+    showToast(`不支持的文件类型：${file.name}`);
+    return false;
+  });
+
+  if (validFiles.length === 0) return;
+
+  setUploadProgressVisible(true);
+  let completed = 0;
+
+  for (const file of validFiles) {
+    updateUploadProgress(completed, validFiles.length, file.name);
+    await uploadSingleFile(file);
+    completed += 1;
+  }
+
+  updateUploadProgress(completed, validFiles.length, "");
+  setTimeout(() => setUploadProgressVisible(false), 800);
+  await loadDocuments();
+}
+
+async function uploadSingleFile(file) {
+  return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = async () => {
       try {
-        // 上传后立即写入 SQLite，刷新页面时可以从后端重新加载列表。
-        const document = await apiFetch("/api/documents/upload", {
+        const doc = await apiFetch("/api/documents/upload", {
           method: "POST",
           body: JSON.stringify({
             filename: file.name,
@@ -87,35 +144,55 @@ function handleFiles(fileList) {
             size: file.size,
           }),
         });
-        await loadDocuments();
-        showToast(document.deduplicated ? `${file.name} 已存在，未重复上传` : `已上传 ${file.name}`);
+        showToast(doc.deduplicated ? `${file.name} 已存在，未重复上传` : `已上传 ${file.name}`);
       } catch (error) {
-        showToast(error.message || "上传失败");
+        showToast(`${file.name} 上传失败：${error.message || "未知错误"}`);
       }
+      resolve();
+    };
+    reader.onerror = () => {
+      showToast(`${file.name} 读取失败`);
+      resolve();
     };
     reader.readAsText(file, "utf-8");
   });
 }
 
-async function indexFile(index) {
+function setUploadProgressVisible(visible) {
+  uploadIcon.style.display = visible ? "none" : "";
+  uploadPrompt.style.display = visible ? "none" : "";
+  uploadProgress.style.display = visible ? "block" : "none";
+}
+
+function updateUploadProgress(completed, total, filename) {
+  const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
+  uploadProgressText.textContent = filename
+    ? `上传 ${completed + 1}/${total} · ${filename}`
+    : `上传完成 ${total} 个文件`;
+  uploadProgressPercent.textContent = `${percent}%`;
+  uploadProgressBar.style.width = `${percent}%`;
+}
+
+async function indexFile(index, options = {}) {
+  const { skipDetail = false } = options;
   const file = files[index];
   if (!file || !canIndex(file)) return;
 
-  file.status = "indexing";
-  file.error_message = "";
+  files[index] = { ...file, status: "indexing", error_message: "" };
   renderFiles();
   updateStats();
 
   try {
-    const document = await apiFetch(`/api/documents/${file.id}/index`, { method: "POST" });
-    files[index] = normalizeDocument(document, file);
+    const doc = await apiFetch(`/api/documents/${file.id}/index`, { method: "POST" });
+    files[index] = normalizeDocument(doc, file);
     selectedIndex = index;
-    await showDetail(index);
+    if (!skipDetail) {
+      await showDetail(index);
+    }
     showToast(`已入库 ${file.filename}`);
   } catch (error) {
-    file.status = "failed";
-    file.error_message = error.message || "入库失败";
-    showToast(file.error_message);
+    files[index] = { ...files[index], status: "failed", error_message: error.message || "入库失败" };
+    showToast(files[index].error_message);
   } finally {
     renderFiles();
     updateStats();
@@ -124,11 +201,14 @@ async function indexFile(index) {
 
 function renderFiles() {
   const keyword = fileSearch.value.trim().toLowerCase();
+  const statusValue = statusFilter.value;
   const filtered = files
     .map((file, index) => ({ file, index }))
     .filter(({ file }) => {
       const haystack = `${file.filename}\n${file.source_path}\n${file.content || ""}`.toLowerCase();
-      return !keyword || haystack.includes(keyword);
+      const matchesKeyword = !keyword || haystack.includes(keyword);
+      const matchesStatus = !statusValue || file.status === statusValue;
+      return matchesKeyword && matchesStatus;
     });
 
   emptyState.style.display = files.length ? "none" : "block";
@@ -136,10 +216,14 @@ function renderFiles() {
 
   filtered.forEach(({ file, index }) => {
     const resultText = file.status === "ready"
-      ? `${file.stored_count}/${file.vectors_count} -> Milvus`
+      ? `${file.stored_count} chunks → Milvus`
       : file.error_message || "未入库";
+    const resultCell = file.status === "failed"
+      ? `<span class="error-detail" data-error="${index}">点击查看错误</span>`
+      : escapeHTML(resultText);
     const row = document.createElement("tr");
     row.innerHTML = `
+      <td style="text-align:center;"><input type="checkbox" class="row-checkbox" data-select="${index}" ${file.selected ? "checked" : ""}></td>
       <td>
         <div class="cell-name">
           <div class="file-icon">
@@ -150,20 +234,107 @@ function renderFiles() {
       </td>
       <td><span class="status-pill ${statusClass(file.status)}">${statusLabel(file.status)}</span></td>
       <td class="mono">${formatSize(file.size)}</td>
-      <td class="mono">${escapeHTML(resultText)}</td>
-      <td>
+      <td class="mono">${resultCell}</td>
+      <td style="color: var(--fg-secondary); font-size: 12px;">${formatRelativeTime(file.updated_at || file.created_at)}</td>
+      <td style="text-align:right;">
         <div class="cell-actions">
           <button class="btn btn-sm btn-ghost" data-preview="${index}">预览</button>
-          <button class="btn btn-sm btn-primary" data-index="${index}" ${!canIndex(file) ? "disabled" : ""}>入库</button>
-          <button class="btn btn-sm btn-danger" data-remove="${index}">删除</button>
+          <div class="action-menu">
+            <button class="action-menu-button" data-action-toggle="${index}">⋯</button>
+            <div class="action-menu-list">
+              <button class="action-menu-item" data-index="${index}" ${!canIndex(file) ? "disabled" : ""}>入库</button>
+              <button class="action-menu-item danger" data-remove="${index}">删除</button>
+            </div>
+          </div>
         </div>
       </td>
     `;
     fileTableBody.appendChild(row);
   });
 
+  updateSelectionUI();
   document.getElementById("file-badge").textContent = files.length;
   document.getElementById("btn-index-all").disabled = !files.some(canIndex);
+}
+
+function updateSelectionUI() {
+  const selectedCount = files.filter(file => file.selected).length;
+  const filteredCount = files.filter(file => matchesFilters(file)).length;
+  const allFilteredSelected = filteredCount > 0 && files.filter(file => matchesFilters(file)).every(file => file.selected);
+
+  selectAllHeaderCheckbox.checked = allFilteredSelected;
+  selectAllHeaderCheckbox.indeterminate = selectedCount > 0 && !allFilteredSelected;
+  bulkSelectionCount.textContent = `已选 ${selectedCount} 项`;
+  bulkIndexButton.disabled = !files.some(file => file.selected && canIndex(file));
+  bulkDeleteButton.disabled = selectedCount === 0;
+}
+
+function matchesFilters(file) {
+  const keyword = fileSearch.value.trim().toLowerCase();
+  const statusValue = statusFilter.value;
+  const haystack = `${file.filename}\n${file.source_path}\n${file.content || ""}`.toLowerCase();
+  const matchesKeyword = !keyword || haystack.includes(keyword);
+  const matchesStatus = !statusValue || file.status === statusValue;
+  return matchesKeyword && matchesStatus;
+}
+
+function toggleSelected(index) {
+  const file = files[index];
+  if (!file) return;
+  files[index] = { ...file, selected: !file.selected };
+  renderFiles();
+}
+
+function setAllSelected(selected) {
+  files.forEach((file, index) => {
+    if (matchesFilters(file)) {
+      files[index] = { ...file, selected };
+    }
+  });
+  renderFiles();
+}
+
+async function bulkIndexSelected() {
+  const indices = files
+    .map((file, index) => ({ file, index }))
+    .filter(({ file }) => file.selected && canIndex(file))
+    .map(({ index }) => index);
+
+  for (const index of indices) {
+    await indexFile(index, { skipDetail: true });
+  }
+}
+
+async function bulkDeleteSelected() {
+  const indices = files
+    .map((file, index) => ({ file, index }))
+    .filter(({ file }) => file.selected)
+    .map(({ index }) => index)
+    .sort((a, b) => b - a);
+
+  if (indices.length === 0) return;
+  if (!(await confirmDialog(`确定删除选中的 ${indices.length} 个文档吗？此操作不可恢复。`))) return;
+
+  for (const index of indices) {
+    await deleteFileAtIndex(index);
+  }
+}
+
+function toggleActionMenu(button) {
+  const menu = button.parentElement;
+  const isOpen = menu.classList.contains("open");
+  closeAllActionMenus();
+  if (!isOpen) {
+    menu.classList.add("open");
+  }
+}
+
+function closeAllActionMenus() {
+  document.querySelectorAll(".action-menu.open").forEach(menu => menu.classList.remove("open"));
+}
+
+async function confirmDialog(message) {
+  return window.confirm(message);
 }
 
 async function showDetail(index) {
@@ -188,7 +359,10 @@ async function showDetail(index) {
     <div class="section-card">
       <div class="section-card-header">
         <h2>${escapeHTML(current.filename)}</h2>
-        <span class="detail-meta">${escapeHTML(current.updated_at || current.created_at)} · ${formatSize(current.size)}</span>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span class="detail-meta">${escapeHTML(current.updated_at || current.created_at)} · ${formatSize(current.size)}</span>
+          <button class="detail-close" id="detail-close" title="关闭预览">✕</button>
+        </div>
       </div>
       ${current.status === "ready" ? resultSummaryHTML(current) : ""}
       <div class="detail-panel">
@@ -196,143 +370,51 @@ async function showDetail(index) {
           <span>原文预览</span>
           <span class="detail-meta">${escapeHTML(fileExt(current.filename).toUpperCase())}</span>
         </div>
-        <pre>${escapeHTML(current.content || "")}</pre>
+        <div class="markdown-body">${renderMarkdown(current.content)}</div>
       </div>
     </div>
   `;
+  document.getElementById("detail-close").addEventListener("click", closeDetail);
   detailArea.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
-function resultSummaryHTML(document) {
+function closeDetail() {
+  detailArea.style.display = "none";
+  selectedIndex = -1;
+}
+
+function resultSummaryHTML(doc) {
   return `
     <div class="result-grid">
-      <div class="result-item"><b>${document.sections_count}</b><span>Sections</span></div>
-      <div class="result-item"><b>${document.chunks_count}</b><span>Chunks</span></div>
-      <div class="result-item"><b>${document.vectors_count}</b><span>Vectors</span></div>
-      <div class="result-item"><b>${document.stored_count}</b><span>Stored</span></div>
-      <div class="result-item"><b>${(document.chunks || []).length}</b><span>Saved Chunks</span></div>
-    </div>
-    <div class="detail-panel">
-      <div class="detail-header">
-        <span>入库详情</span>
-        <span class="detail-meta">SQLite + Milvus</span>
-      </div>
-      <pre>${escapeHTML(JSON.stringify(document, null, 2))}</pre>
-    </div>
-  `;
+      <div class="result-item"><b>${doc.sections_count}</b><span>Sections</span></div>
+      <div class="result-item"><b>${doc.chunks_count}</b><span>Chunks</span></div>
+      <div class="result-item"><b>${doc.vectors_count}</b><span>Vectors</span></div>
+      <div class="result-item"><b>${doc.stored_count}</b><span>Stored</span></div>
+      <div class="result-item"><b>${(doc.chunks || []).length}</b><span>Saved Chunks</span></div>
+    </div>`;
 }
 
 function showDocumentsView() {
   navDocuments.classList.add("active");
-  navMilvus.classList.remove("active");
   navSettings.classList.remove("active");
   statsRow.style.display = "";
   documentSection.style.display = "";
-  indexAllButton.style.display = "";
+  indexAllButton.parentElement.style.display = "";
   headerTitle.textContent = "文档入库";
   detailArea.style.display = "none";
   updateStats();
 }
 
-function showMilvusView() {
-  navMilvus.classList.add("active");
-  navDocuments.classList.remove("active");
-  navSettings.classList.remove("active");
-  statsRow.style.display = "";
-  documentSection.style.display = "none";
-  indexAllButton.style.display = "none";
-  headerTitle.textContent = "Milvus 检索测试";
-  document.getElementById("header-meta").textContent = `输入问题，验证 Milvus 是否能召回正确 chunk · API ${API_BASE_URL}`;
-  detailArea.style.display = "block";
-  detailArea.innerHTML = retrievalPanelHTML();
-  document.getElementById("retrieval-submit").addEventListener("click", searchRetrieval);
-  document.getElementById("retrieval-query").addEventListener("keydown", event => {
-    if (event.key === "Enter") {
-      searchRetrieval();
-    }
-  });
-}
-
-function retrievalPanelHTML() {
-  return `
-    <div class="section-card">
-      <div class="section-card-header">
-        <h2>检索测试</h2>
-        <span class="detail-meta">Qwen/Qwen3-VL-Embedding-8B -> Milvus</span>
-      </div>
-      <div class="retrieval-form">
-        <input class="retrieval-input" id="retrieval-query" placeholder="例如：ChiefArchitect 的 Prompt 设计是什么？">
-        <input class="retrieval-input" id="retrieval-top-k" type="number" min="1" max="20" value="5" title="Top K">
-        <button class="btn btn-primary" id="retrieval-submit">检索</button>
-      </div>
-      <div class="retrieval-results" id="retrieval-results">
-        <div class="empty-state" style="padding: 42px 24px;">
-          <h3>🐾 等待检索</h3>
-          <p>输入一个问题，旺财帮你在知识库里找答案。</p>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-async function searchRetrieval() {
-  const queryInput = document.getElementById("retrieval-query");
-  const topKInput = document.getElementById("retrieval-top-k");
-  const submitButton = document.getElementById("retrieval-submit");
-  const resultsArea = document.getElementById("retrieval-results");
-  const query = queryInput.value.trim();
-  const topK = Math.max(1, Math.min(20, Number(topKInput.value || 5)));
-
-  if (!query) {
-    showToast("请输入检索问题");
-    return;
-  }
-
-  submitButton.disabled = true;
-  resultsArea.innerHTML = `<div class="empty-state" style="padding: 42px 24px;"><h3>🐶 检索中</h3><p>旺财正在向量化问题并查询 Milvus...</p></div>`;
-  try {
-    const result = await apiFetch("/api/retrieval/search", {
-      method: "POST",
-      body: JSON.stringify({ query, top_k: topK }),
-    });
-    renderRetrievalResults(result);
-  } catch (error) {
-    resultsArea.innerHTML = `<div class="empty-state" style="padding: 42px 24px;"><h3>😿 检索失败</h3><p>${escapeHTML(error.message || "请检查 Milvus 和 API 配置")}</p></div>`;
-  } finally {
-    submitButton.disabled = false;
-  }
-}
-
-function renderRetrievalResults(result) {
-  const resultsArea = document.getElementById("retrieval-results");
-  if (!result.results || result.results.length === 0) {
-    resultsArea.innerHTML = `<div class="empty-state" style="padding: 42px 24px;"><h3>🐾 没有命中</h3><p>可以换一个问法，或检查文档是否已经入库。</p></div>`;
-    return;
-  }
-
-  resultsArea.innerHTML = result.results.map((item, index) => `
-    <div class="retrieval-result">
-      <div class="retrieval-result-head">
-        <div>
-          <div class="retrieval-result-title">${index + 1}. ${escapeHTML(item.document_title || item.chunk_id)}</div>
-          <div class="detail-meta">${escapeHTML((item.heading_path || []).join(" > "))} · ${escapeHTML(item.source_path)} · L${item.start_line}-${item.end_line}</div>
-        </div>
-        <div class="retrieval-score">score ${Number(item.score || 0).toFixed(4)}</div>
-      </div>
-      <div class="retrieval-result-body">${escapeHTML(item.content || "")}</div>
-    </div>
-  `).join("");
-}
-
 async function showSettingsView() {
   navSettings.classList.add("active");
   navDocuments.classList.remove("active");
-  navMilvus.classList.remove("active");
   statsRow.style.display = "none";
   documentSection.style.display = "none";
-  indexAllButton.style.display = "none";
+  indexAllButton.parentElement.style.display = "none";
   headerTitle.textContent = "模型设置";
-  document.getElementById("header-meta").textContent = "配置桌宠问答使用的对话模型 API";
+  headerMeta.textContent = "配置对话模型 API";
+  apiStatus.textContent = `API: ${API_BASE_URL.replace(/^https?:\/\//, "")} ✓`;
+  apiStatus.className = "api-status-ok";
   detailArea.style.display = "block";
   detailArea.innerHTML = settingsPanelHTML();
   bindSettingsForm();
@@ -488,13 +570,29 @@ function chatModelSettingsPayload() {
 
 function updateStats() {
   const stored = files.filter(file => file.status === "ready").length;
-  const latestReady = files.find(file => file.status === "ready");
+  const failed = files.filter(file => file.status === "failed").length;
+  const latestReady = files
+    .filter(file => file.status === "ready")
+    .sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime())[0];
   document.getElementById("stat-files").textContent = files.length;
   document.getElementById("stat-stored").textContent = stored;
-  document.getElementById("stat-chunks").textContent = latestReady ? latestReady.chunks_count : 0;
   document.getElementById("stat-vectors").textContent = latestReady ? latestReady.vectors_count : 0;
-  document.getElementById("stored-badge").textContent = stored;
-  document.getElementById("header-meta").textContent = `${files.length} 个文件 · ${stored} 个已入库 · API ${API_BASE_URL}`;
+  headerMeta.textContent = `${files.length} 个文件 · ${stored} 个已入库`;
+
+  const failedBadge = document.getElementById("stat-failed-badge");
+  if (failedBadge) {
+    failedBadge.textContent = `${failed} 失败`;
+    failedBadge.style.display = failed > 0 ? "block" : "none";
+  }
+}
+
+function renderApiStatus(isError = false) {
+  apiStatus.textContent = `API: ${API_BASE_URL.replace(/^https?:\/\//, "")} ${isError ? "✗" : "✓"}`;
+  apiStatus.className = isError ? "api-status-error" : "api-status-ok";
+}
+
+function setApiStatusFromResponse(ok) {
+  renderApiStatus(!ok);
 }
 
 function statusClass(status) {
@@ -516,10 +614,41 @@ function formatSize(bytes) {
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 }
 
+function formatRelativeTime(isoString) {
+  if (!isoString) return "—";
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) return isoString;
+
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
+
+  if (diffSec < 60) return "刚刚";
+  if (diffMin < 60) return `${diffMin} 分钟前`;
+  if (diffHour < 24) return `${diffHour} 小时前`;
+  if (diffDay < 7) return `${diffDay} 天前`;
+  return date.toLocaleDateString("zh-CN");
+}
+
 function escapeHTML(value) {
   const div = document.createElement("div");
   div.textContent = String(value);
   return div.innerHTML;
+}
+
+function renderMarkdown(markdown) {
+  if (typeof marked === "undefined" || typeof DOMPurify === "undefined") {
+    return `<pre>${escapeHTML(markdown || "")}</pre>`;
+  }
+  try {
+    const rawHtml = marked.parse(String(markdown || ""));
+    return DOMPurify.sanitize(rawHtml);
+  } catch (error) {
+    return `<pre>${escapeHTML(markdown || "")}</pre>`;
+  }
 }
 
 function showToast(message) {
@@ -534,9 +663,12 @@ function showToast(message) {
 async function loadDocuments() {
   try {
     const body = await apiFetch("/api/documents");
-    files.splice(0, files.length, ...body.documents.map(normalizeDocument));
+    const selectedIds = new Set(files.filter(file => file.selected).map(file => file.id));
+    files.splice(0, files.length, ...body.documents.map(doc => normalizeDocument(doc, { selected: selectedIds.has(doc.id) })));
+    renderApiStatus(false);
   } catch (error) {
     showToast(error.message || "加载文档失败");
+    renderApiStatus(true);
   } finally {
     renderFiles();
     updateStats();
@@ -546,12 +678,21 @@ async function loadDocuments() {
 async function deleteFile(index) {
   const file = files[index];
   if (!file) return;
+  if (!(await confirmDialog(`确定删除 "${file.filename}" 吗？此操作不可恢复。`))) return;
+  await deleteFileAtIndex(index);
+}
+
+async function deleteFileAtIndex(index) {
+  const file = files[index];
+  if (!file) return;
   try {
     await apiFetch(`/api/documents/${file.id}`, { method: "DELETE" });
     files.splice(index, 1);
     if (selectedIndex === index) {
       selectedIndex = -1;
       detailArea.style.display = "none";
+    } else if (selectedIndex > index) {
+      selectedIndex -= 1;
     }
     renderFiles();
     updateStats();
@@ -588,21 +729,22 @@ async function apiFetch(path, options = {}) {
   return body;
 }
 
-function normalizeDocument(document, previous = {}) {
+function normalizeDocument(doc, previous = {}) {
   return {
     ...previous,
-    ...document,
-    filename: String(document.filename || previous.filename || ""),
-    source_path: String(document.source_path || previous.source_path || ""),
-    size: Number(document.size || previous.size || 0),
-    status: document.status === "indexing" ? "uploaded" : String(document.status || previous.status || "uploaded"),
-    sections_count: Number(document.sections_count || 0),
-    chunks_count: Number(document.chunks_count || 0),
-    vectors_count: Number(document.vectors_count || 0),
-    stored_count: Number(document.stored_count || 0),
-    error_message: String(document.error_message || ""),
-    content: document.content ?? previous.content ?? "",
-    chunks: document.chunks || previous.chunks || [],
+    ...doc,
+    selected: previous.selected || false,
+    filename: String(doc.filename || previous.filename || ""),
+    source_path: String(doc.source_path || previous.source_path || ""),
+    size: Number(doc.size || previous.size || 0),
+    status: String(doc.status || previous.status || "uploaded"),
+    sections_count: Number(doc.sections_count || 0),
+    chunks_count: Number(doc.chunks_count || 0),
+    vectors_count: Number(doc.vectors_count || 0),
+    stored_count: Number(doc.stored_count || 0),
+    error_message: String(doc.error_message || ""),
+    content: doc.content ?? previous.content ?? "",
+    chunks: doc.chunks || previous.chunks || [],
   };
 }
 

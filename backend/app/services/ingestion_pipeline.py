@@ -149,6 +149,8 @@ def _milvus_store_config(request: IngestionRequest) -> MilvusStoreConfig:
         vector_dim=request.milvus_vector_dim or get_config_int("MILVUS_VECTOR_DIM", 4096),
         metric_type=request.milvus_metric_type or get_config_value("MILVUS_METRIC_TYPE", "COSINE"),
         timeout_seconds=request.milvus_timeout_seconds or get_config_int("MILVUS_TIMEOUT_SECONDS", 60),
+        lite_enabled=get_config_value("MILVUS_LITE_ENABLED", "true").lower() in {"1", "true", "yes", "on"},
+        lite_path=get_config_value("MILVUS_LITE_PATH", "./data/milvus.db"),
     )
 
 

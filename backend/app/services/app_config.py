@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 def get_config_value(name: str, default: str = "") -> str:
     """优先读系统环境变量；没有时再读项目 `.env` 文件。"""
 

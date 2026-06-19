@@ -82,6 +82,8 @@ def _milvus_store_config() -> MilvusStoreConfig:
         vector_dim=get_config_int("MILVUS_VECTOR_DIM", 4096),
         metric_type=get_config_value("MILVUS_METRIC_TYPE", "COSINE"),
         timeout_seconds=get_config_int("MILVUS_TIMEOUT_SECONDS", 60),
+        lite_enabled=get_config_value("MILVUS_LITE_ENABLED", "true").lower() in {"1", "true", "yes", "on"},
+        lite_path=get_config_value("MILVUS_LITE_PATH", "./data/milvus.db"),
     )
 
 

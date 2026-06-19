@@ -3,3 +3,5 @@ httpx
 pymilvus
 sentence-transformers
 uvicorn
+milvus-lite
+jieba

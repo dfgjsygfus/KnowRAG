@@ -29,7 +29,8 @@ async function submitQuestion() {
     // Browser dev mode has no main Tauri window to receive the event.
   }
   question.value = "";
-  await closeWindow();
+  await nextTick();
+  inputRef.value?.focus();
 }
 
 function onKeyDown(event) {
@@ -52,17 +53,22 @@ onBeforeUnmount(() => {
 
 <template>
   <main class="chat-input-window">
-    <form class="chat-input-form" @submit.prevent="submitQuestion">
-      <input
-        ref="inputRef"
-        v-model="question"
-        class="chat-input-field"
-        maxlength="200"
-        placeholder="问一句..."
-        @keydown.enter.exact.prevent="submitQuestion"
-      />
-      <button class="chat-input-send" type="submit" :disabled="!question.trim()">➤</button>
-    </form>
+    <div class="chat-input-wrapper">
+      <form class="chat-input-form" @submit.prevent="submitQuestion">
+        <input
+          ref="inputRef"
+          v-model="question"
+          class="chat-input-field"
+          maxlength="200"
+          placeholder="问一句..."
+          @keydown.enter.exact.prevent="submitQuestion"
+        />
+        <button class="chat-input-send" type="submit" :disabled="!question.trim()">➤</button>
+      </form>
+      <div class="chat-close-area">
+        <button class="chat-close-button" type="button" title="关闭" @click="closeWindow">✕</button>
+      </div>
+    </div>
   </main>
 </template>
 
@@ -71,10 +77,17 @@ onBeforeUnmount(() => {
   width: 100vw;
   height: 100vh;
   display: grid;
-  place-items: center;
-  padding: 8px;
+  place-items: start center;
+  padding: 4px 8px 8px;
   background: transparent;
   overflow: hidden;
+}
+
+.chat-input-wrapper {
+  position: relative;
+  width: 100%;
+  display: grid;
+  place-items: center;
 }
 
 .chat-input-form {
@@ -131,5 +144,46 @@ onBeforeUnmount(() => {
 .chat-input-send:disabled {
   cursor: default;
   opacity: 0.45;
+}
+
+.chat-close-area {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  place-items: center;
+  padding: 4px 20px;
+}
+
+.chat-close-button {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 247, 241, 0.9);
+  color: #8b7355;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(4px) scale(0.9);
+  transition: opacity 0.25s ease, transform 0.25s ease, background 0.15s ease;
+  box-shadow: 0 2px 8px rgba(140, 100, 60, 0.12);
+  pointer-events: none;
+}
+
+.chat-close-area:hover .chat-close-button,
+.chat-close-button:hover {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.chat-close-button:hover {
+  background: rgba(255, 247, 241, 1);
+  color: #5a4a3a;
 }
 </style>

@@ -6,11 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "node --test src/lib/*.test.js",
+    "test": "node --test src/lib/*.test.js src/composables/*.test.js",
     "tauri": "tauri"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.5.0",
+    "isomorphic-dompurify": "^3.17.0",
+    "marked": "^18.0.5",
     "vue": "^3.5.13"
   },
   "devDependencies": {

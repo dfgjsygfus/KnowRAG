@@ -68,23 +68,7 @@ body::before {
   flex-direction: column;
   user-select: none;
 }
-.sidebar-header { padding: 28px 24px 20px; }
-.logo-area { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
-.logo-icon {
-  width: 36px;
-  height: 36px;
-  background: var(--accent);
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  font-size: 20px;
-  line-height: 1;
-  box-shadow: 0 2px 8px rgba(232, 150, 122, 0.35);
-}
-.logo-label { font: 600 15px/1.2 var(--font-display); color: var(--fg); }
-.logo-sub { font: 12px/1.3 var(--font-body); color: var(--fg-secondary); margin-left: 44px; }
-.sidebar-nav { flex: 1; padding: 8px 16px; display: flex; flex-direction: column; gap: 2px; }
+.sidebar-nav { flex: 1; padding: 20px 16px 8px; display: flex; flex-direction: column; gap: 2px; }
 .nav-label {
   font: 600 11px/1.3 var(--font-body);
   text-transform: uppercase;
@@ -121,27 +105,6 @@ body::before {
   min-width: 22px;
   text-align: center;
 }
-.sidebar-footer {
-  padding: 16px 24px;
-  border-top: 1px solid rgba(210, 180, 150, 0.25);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.avatar {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: rgba(232, 150, 122, 0.18);
-  display: grid;
-  place-items: center;
-  font-size: 16px;
-  line-height: 1;
-  color: var(--accent);
-}
-.user-info { font: 12px/1.3 var(--font-body); }
-.user-info span { display: block; font-size: 11px; color: var(--fg-secondary); }
-
 .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
 .main-header {
   padding: 20px 36px;
@@ -156,7 +119,7 @@ body::before {
 
 .stats-row {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 24px;
 }
@@ -321,6 +284,83 @@ body::before {
 .cell-actions { display: flex; gap: 4px; }
 .mono { font-family: var(--font-mono); font-size: 11px; }
 
+.row-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.toolbar select.search-input {
+  color: var(--fg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b7355' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.action-menu { position: relative; display: inline-block; }
+.action-menu-button {
+  background: transparent;
+  border: 0;
+  color: var(--fg-secondary);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 16px;
+  line-height: 1;
+}
+.action-menu-button:hover { background: rgba(180, 140, 100, 0.08); color: var(--fg); }
+.action-menu-list {
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  margin-bottom: 4px;
+  min-width: 90px;
+  background: rgba(255, 251, 247, 0.98);
+  border: 1px solid rgba(210, 180, 150, 0.35);
+  border-radius: 10px;
+  box-shadow: 0 6px 22px rgba(140, 100, 60, 0.16);
+  padding: 6px;
+  z-index: 100;
+  display: none;
+}
+.detail-close {
+  background: transparent;
+  border: 0;
+  color: var(--fg-secondary);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 4px;
+  border-radius: 6px;
+}
+.detail-close:hover { background: rgba(180, 140, 100, 0.08); color: var(--fg); }
+.action-menu.open .action-menu-list { display: block; }
+.action-menu-item {
+  display: block;
+  width: 100%;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  font: 13px/1.3 var(--font-body);
+  text-align: left;
+  cursor: pointer;
+}
+.action-menu-item:hover { background: var(--sidebar-hover); }
+.action-menu-item.danger { color: var(--danger); }
+.action-menu-item.danger:hover { background: rgba(212, 112, 96, 0.08); }
+.error-detail {
+  color: var(--danger);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+.api-status-ok { color: var(--success); }
+.api-status-error { color: var(--danger); }
+
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -366,6 +406,60 @@ body::before {
   color: var(--fg);
   background: rgba(255, 251, 247, 0.5);
 }
+.markdown-body {
+  padding: 20px;
+  font: 14px/1.65 var(--font-body);
+  color: var(--fg);
+  background: rgba(255, 251, 247, 0.5);
+  max-height: 540px;
+  overflow-y: auto;
+}
+.markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4, .markdown-body h5, .markdown-body h6 {
+  font-family: var(--font-display);
+  margin: 18px 0 10px;
+  color: var(--fg);
+  line-height: 1.3;
+}
+.markdown-body h1 { font-size: 22px; border-bottom: 1px solid var(--border-light); padding-bottom: 6px; }
+.markdown-body h2 { font-size: 18px; }
+.markdown-body h3 { font-size: 16px; }
+.markdown-body h4 { font-size: 15px; }
+.markdown-body p { margin: 10px 0; }
+.markdown-body ul, .markdown-body ol { padding-left: 22px; margin: 10px 0; }
+.markdown-body li { margin: 4px 0; }
+.markdown-body a { color: var(--accent); text-decoration: none; }
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body code {
+  font-family: var(--font-mono);
+  background: rgba(210, 180, 150, 0.18);
+  padding: 2px 5px;
+  border-radius: 5px;
+  font-size: 12px;
+}
+.markdown-body pre {
+  background: rgba(240, 232, 220, 0.7);
+  padding: 14px;
+  border-radius: 10px;
+  overflow-x: auto;
+  margin: 12px 0;
+  white-space: pre;
+  font: 12px/1.6 var(--font-mono);
+}
+.markdown-body pre code { background: transparent; padding: 0; }
+.markdown-body blockquote {
+  border-left: 3px solid var(--accent);
+  margin: 12px 0;
+  padding: 6px 14px;
+  color: var(--fg-secondary);
+  background: rgba(232, 150, 122, 0.06);
+  border-radius: 0 8px 8px 0;
+}
+.markdown-body img { max-width: 100%; border-radius: 8px; }
+.markdown-body hr { border: 0; border-top: 1px solid var(--border-light); margin: 16px 0; }
+.markdown-body table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+.markdown-body th, .markdown-body td { border: 1px solid var(--border-light); padding: 8px 12px; text-align: left; }
+.markdown-body th { background: rgba(250, 245, 240, 0.8); }
+.markdown-body summary { cursor: pointer; }
 .result-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -511,13 +605,6 @@ body::before {
 <body>
 <div class="app-shell">
   <aside class="sidebar">
-    <div class="sidebar-header">
-      <div class="logo-area">
-        <div class="logo-icon">🐶</div>
-        <span class="logo-label">KnowRAG</span>
-      </div>
-      <div class="logo-sub">Admin Console</div>
-    </div>
     <nav class="sidebar-nav">
       <div class="nav-label">功能</div>
       <button class="active" id="nav-documents">
@@ -527,13 +614,6 @@ body::before {
         文档入库
         <span class="nav-badge" id="file-badge">0</span>
       </button>
-      <button id="nav-milvus">
-        <span class="nav-icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 9h8M8 13h5"/></svg>
-        </span>
-        Milvus
-        <span class="nav-badge" id="stored-badge">0</span>
-      </button>
       <button id="nav-settings">
         <span class="nav-icon">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.34 1.88l.04.04a2 2 0 01-2.83 2.83l-.04-.04A1.7 1.7 0 0015 19.4a1.7 1.7 0 00-1 .6 1.7 1.7 0 00-.4 1.1V21a2 2 0 01-4 0v-.06a1.7 1.7 0 00-.4-1.1 1.7 1.7 0 00-1-.6 1.7 1.7 0 00-1.88.34l-.04.04a2 2 0 01-2.83-2.83l.04-.04A1.7 1.7 0 004.6 15a1.7 1.7 0 00-.6-1 1.7 1.7 0 00-1.1-.4H3a2 2 0 010-4h.06a1.7 1.7 0 001.1-.4 1.7 1.7 0 00.6-1 1.7 1.7 0 00-.34-1.88l-.04-.04a2 2 0 012.83-2.83l.04.04A1.7 1.7 0 009 4.6a1.7 1.7 0 001-.6 1.7 1.7 0 00.4-1.1V3a2 2 0 014 0v.06a1.7 1.7 0 00.4 1.1 1.7 1.7 0 001 .6 1.7 1.7 0 001.88-.34l.04-.04a2 2 0 012.83 2.83l-.04.04A1.7 1.7 0 0019.4 9c.23.37.57.7 1 .9.33.16.7.24 1.1.24H21a2 2 0 010 4h-.06a1.7 1.7 0 00-1.1.4 1.7 1.7 0 00-.44.46z"/></svg>
@@ -541,10 +621,6 @@ body::before {
         模型设置
       </button>
     </nav>
-    <div class="sidebar-footer">
-      <div class="avatar">🐶</div>
-      <div class="user-info">管理员<span>本地离线入库</span></div>
-    </div>
   </aside>
 
   <main class="main">
@@ -553,28 +629,26 @@ body::before {
         <h1>文档入库</h1>
         <div class="header-meta" id="header-meta">上传 Markdown 或文本文件，写入 Milvus 向量库</div>
       </div>
-      <button class="btn btn-primary" id="btn-index-all" disabled>全部入库</button>
+      <div style="text-align: right;">
+        <button class="btn btn-primary" id="btn-index-all" disabled>全部入库</button>
+        <div class="header-meta" id="api-status" style="margin-top: 6px; font-size: 12px;">API: —</div>
+      </div>
     </header>
 
     <div class="main-body">
-      <div class="stats-row">
+      <div class="stats-row" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
         <div class="stat-card">
           <div class="stat-icon">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
           </div>
           <div><div class="stat-value" id="stat-files">0</div><div class="stat-label">文件数</div></div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card" style="position: relative;">
           <div class="stat-icon">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
           </div>
           <div><div class="stat-value" id="stat-stored">0</div><div class="stat-label">已入库</div></div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M9 9h6v6H9z"/></svg>
-          </div>
-          <div><div class="stat-value" id="stat-chunks">0</div><div class="stat-label">Chunk</div><div class="stat-sub">最近结果</div></div>
+          <span id="stat-failed-badge" style="display:none;position:absolute;top:12px;right:12px;background:var(--danger);color:#fff;font-size:10px;padding:2px 7px;border-radius:999px;">0 失败</span>
         </div>
         <div class="stat-card">
           <div class="stat-icon">
@@ -586,11 +660,22 @@ body::before {
 
       <div class="section-card">
         <div class="upload-zone" id="upload-zone">
-          <div class="upload-icon-circle">
+          <div class="upload-icon-circle" id="upload-icon">
             <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
           </div>
-          <p>拖拽文件到此处，或 <span class="browse-link">点击浏览</span> 🐶</p>
-          <p class="hint">支持 .md / .markdown / .txt，上传后可预览并写入 Milvus</p>
+          <div id="upload-prompt">
+            <p>拖拽文件到此处，或 <span class="browse-link">点击浏览</span></p>
+            <p class="hint">支持 .md / .markdown / .txt，上传后可预览并写入 Milvus</p>
+          </div>
+          <div id="upload-progress" style="display:none;width:100%;max-width:320px;margin:0 auto;">
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--fg-secondary);margin-bottom:6px;">
+              <span id="upload-progress-text">上传中...</span>
+              <span id="upload-progress-percent">0%</span>
+            </div>
+            <div style="height:5px;background:rgba(210,180,150,0.3);border-radius:3px;overflow:hidden;">
+              <div id="upload-progress-bar" style="height:100%;width:0;background:var(--accent);border-radius:3px;transition:width 0.2s ease;"></div>
+            </div>
+          </div>
         </div>
         <input type="file" accept=".md,.markdown,.txt" id="file-input" hidden multiple>
         <div class="toolbar">
@@ -600,25 +685,37 @@ body::before {
             </span>
             <input type="text" class="search-input" placeholder="搜索文件或内容" id="file-search">
           </div>
+          <select class="search-input" id="status-filter" style="width:120px;padding-left:12px;color:var(--fg-secondary);">
+            <option value="">全部状态</option>
+            <option value="ready">已入库</option>
+            <option value="uploaded">待入库</option>
+            <option value="indexing">入库中</option>
+            <option value="failed">失败</option>
+          </select>
           <span class="spacer"></span>
+          <span id="bulk-selection-count" style="font-size:12px;color:var(--fg-secondary);">已选 0 项</span>
+          <button class="btn btn-primary" id="btn-bulk-index" disabled>批量入库</button>
+          <button class="btn btn-danger" id="btn-bulk-delete" disabled>批量删除</button>
           <button class="btn btn-ghost" id="btn-clear">清空</button>
         </div>
         <table class="data-table">
           <thead>
             <tr>
+              <th style="width:40px;"><input type="checkbox" id="select-all-header" title="全选"></th>
               <th>文件名</th>
-              <th>状态</th>
-              <th style="width:90px;">大小</th>
-              <th style="width:170px;">入库结果</th>
-              <th style="width:220px;"></th>
+              <th style="width:110px;">状态</th>
+              <th style="width:80px;">大小</th>
+              <th style="width:160px;">入库结果</th>
+              <th style="width:120px;">更新时间</th>
+              <th style="width:90px;text-align:right;">操作</th>
             </tr>
           </thead>
           <tbody id="file-table-body"></tbody>
         </table>
         <div class="empty-state" id="empty-state">
-          <div class="empty-icon-circle">🐾</div>
-          <h3>还没有文档 🐾</h3>
-          <p>汪！上传一个 Markdown 文件，旺财帮你记住它们。</p>
+          <div class="empty-icon-circle">📄</div>
+          <h3>还没有文档</h3>
+          <p>上传一个 Markdown 文件开始构建知识库。</p>
         </div>
       </div>
 
@@ -628,6 +725,8 @@ body::before {
 </div>
 <div class="toast-container" id="toast-container"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" integrity="sha384-/TQbtLCAerC3jgaim+N78RZSDYV7ryeoBCVqTuzRrFec2akfBkHS7ACQ3PQhvMVi" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js" integrity="sha384-nszIONF2FGC59kn+pPFaRa6WUNGwsZgXZiJxJwQbym+TzcH7smolUviLgpPbNx7V" crossorigin="anonymous"></script>
 <script src="/admin/app.js"></script>
 <!-- legacy-disabled block removed — see /admin/app.js for the live implementation -->
 </body>

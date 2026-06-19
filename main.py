@@ -1,3 +1,6 @@
+
+# 在导入 pymilvus 前应用 Milvus Lite Windows 兼容性补丁
+from backend.app.services import milvus_lite_patch  # noqa: F401
 from pathlib import Path
 
 from fastapi import FastAPI

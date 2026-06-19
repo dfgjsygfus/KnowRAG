@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { adminConsoleUrl, openAdminWindow } from "./adminWindow.js";
+import { adminWindowUrl, openAdminWindow } from "./adminWindow.js";
 
-test("adminConsoleUrl uses the shared backend base URL", () => {
-  assert.equal(adminConsoleUrl("http://localhost:9000/"), "http://localhost:9000/admin?v=3");
+test("adminWindowUrl returns the local admin view path", () => {
+  assert.equal(adminWindowUrl(), "/?view=admin");
 });
 
 test("openAdminWindow creates the admin window when it does not exist", async () => {
@@ -23,7 +23,8 @@ test("openAdminWindow creates the admin window when it does not exist", async ()
 
   assert.equal(created.length, 1);
   assert.equal(created[0].label, "admin");
-  assert.equal(created[0].options.url, "http://127.0.0.1:8000/admin?v=3");
+  assert.equal(created[0].options.url, "/?view=admin");
+  assert.equal(created[0].options.title, "KnowRAG 管理台");
 });
 
 test("openAdminWindow restores and focuses an existing admin window", async () => {

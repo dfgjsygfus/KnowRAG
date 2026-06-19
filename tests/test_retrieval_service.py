@@ -25,7 +25,7 @@ class RetrievalServiceTest(unittest.TestCase):
         self.assertEqual(milvus_client.search_calls[0]["limit"], 3)
         self.assertEqual(len(milvus_client.search_calls[0]["reqs"]), 2)
         self.assertEqual(milvus_client.search_calls[0]["ranker"].dict()["strategy"], "weighted")
-        self.assertEqual(milvus_client.search_calls[0]["ranker"].dict()["params"]["weights"], [0.1, 0.9])
+        self.assertEqual(milvus_client.search_calls[0]["ranker"].dict()["params"]["weights"], [0.6, 0.4])
         self.assertEqual(milvus_client.search_calls[0]["reqs"][0].limit, 20)
         self.assertEqual(milvus_client.search_calls[0]["reqs"][1].limit, 20)
         self.assertEqual(result.query, "Prompt 设计是什么？")
@@ -82,6 +82,30 @@ class FakeMilvusClient:
 
     def has_collection(self, collection_name):
         return collection_name == "knowrag_chunks"
+
+    def describe_collection(self, collection_name):
+        return {
+            "fields": [
+                {"name": "id"},
+                {"name": "vector"},
+                {"name": "text"},
+                {"name": "sparse_bm25"},
+                {"name": "chunk_id"},
+                {"name": "chunk_index"},
+                {"name": "source_path"},
+                {"name": "document_title"},
+                {"name": "heading_path_json"},
+                {"name": "heading_path"},
+                {"name": "content"},
+                {"name": "content_b64"},
+                {"name": "token_count"},
+                {"name": "start_line"},
+                {"name": "end_line"},
+            ]
+        }
+
+    def load_collection(self, collection_name):
+        pass
 
     def hybrid_search(self, **kwargs):
         self.search_calls.append(kwargs)

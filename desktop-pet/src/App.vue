@@ -1,4 +1,5 @@
 <script setup>
+import AdminView from "./components/AdminView.vue";
 import PetChatInput from "./components/PetChatInput.vue";
 import PetContextMenu from "./components/PetContextMenu.vue";
 import PetMain from "./components/PetMain.vue";
@@ -10,5 +11,6 @@ const view = params.get("view") || "pet-main";
 <template>
   <PetChatInput v-if="view === 'pet-chat'" />
   <PetContextMenu v-else-if="view === 'pet-menu'" />
+  <AdminView v-else-if="view === 'admin'" />
   <PetMain v-else />
 </template>

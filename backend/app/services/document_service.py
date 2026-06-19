@@ -8,6 +8,7 @@ from backend.app.schemas.documents import ChunkRecord, DocumentDetail, DocumentR
 from backend.app.services.document_repository import DocumentRepository
 from backend.app.services.document_vectorizer import index_markdown_document
 from backend.app.services.milvus_vector_store import MilvusVectorStore
+from backend.app.services.retrieval_service import _milvus_store_config
 
 
 def upload_document_payload(
@@ -63,7 +64,7 @@ def delete_document_payload(
     repo.get_document(document_id)
     old_chunks = repo.list_chunks(document_id)
     if old_chunks:
-        store = vector_store or MilvusVectorStore()
+        store = vector_store or MilvusVectorStore(config=_milvus_store_config())
         store.delete_chunk_ids([chunk.milvus_id for chunk in old_chunks])
     repo.delete_document(document_id)
     return {"id": document_id, "deleted": True}
@@ -81,7 +82,11 @@ def index_document_payload(
     previous_vector_ids = {chunk.milvus_id for chunk in repo.list_chunks(document_id)}
     repo.mark_indexing(document_id)
     try:
-        result = index_markdown_document(document.content, source_path=document.source_path)
+        result = index_markdown_document(
+            document.content,
+            source_path=document.source_path,
+            store_config=_milvus_store_config(),
+        )
     except Exception as exc:
         # 这里记录失败原因，便于前端刷新后仍然能看到上次入库错误。
         repo.mark_failed(document_id, str(exc))

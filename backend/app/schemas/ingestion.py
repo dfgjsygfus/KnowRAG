@@ -29,7 +29,7 @@ class CleanedDocument:
 class ChunkingConfig:
     """文档切分参数，后续可以从知识库配置或接口参数传入。"""
 
-    max_tokens: int = 700
+    max_tokens: int = 1500
     overlap_tokens: int = 100
     min_tokens: int = 80
     preserve_code_blocks: bool = True
@@ -132,6 +132,8 @@ class MilvusStoreConfig:
     vector_dim: int = 4096
     metric_type: str = "COSINE"
     timeout_seconds: int = 60
+    lite_enabled: bool = False
+    lite_path: str = "./data/milvus.db"
 
 
 @dataclass(frozen=True)

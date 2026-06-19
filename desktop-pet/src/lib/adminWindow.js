@@ -1,9 +1,7 @@
-import { backendUrl } from "./backendUrl.js";
-
 const ADMIN_WINDOW_LABEL = "admin";
 
-export function adminConsoleUrl(baseUrl) {
-  return `${backendUrl("/admin", baseUrl)}?v=3`;
+export function adminWindowUrl() {
+  return "/?view=admin";
 }
 
 export async function openAdminWindow(WebviewWindowClass) {
@@ -16,7 +14,7 @@ export async function openAdminWindow(WebviewWindowClass) {
   }
 
   return new WebviewWindowClass(ADMIN_WINDOW_LABEL, {
-    url: adminConsoleUrl(),
+    url: adminWindowUrl(),
     title: "KnowRAG 管理台",
     width: 1180,
     height: 780,

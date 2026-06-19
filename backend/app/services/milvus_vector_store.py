@@ -2,9 +2,16 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 from typing import Any
 
-from backend.app.services.app_config import get_config_int, get_config_value
+
+logger = logging.getLogger(__name__)
+
+# 在导入 pymilvus 之前应用 Windows 兼容性补丁（Milvus Lite 3.0 manifest rename bug）
+from backend.app.services import milvus_lite_patch  # noqa: F401
+
+from backend.app.services.app_config import PROJECT_ROOT, get_config_int, get_config_value
 from backend.app.schemas.ingestion import (
     EmbeddingResult,
     MilvusStoreConfig,
@@ -25,24 +32,31 @@ class MilvusVectorStore:
         self.client = client or _create_milvus_client(self.config)
 
     def ensure_collection(self, dimension: int | None = None) -> None:
-        """确保 collection 存在；不存在时创建（含 BM25 函数）。"""
-
-        if self.client.has_collection(self.config.collection_name):
-            return
+        """确保 collection 存在且 schema 兼容；不兼容时自动重建。"""
 
         from pymilvus import DataType, Function, FunctionType
 
+        collection_name = self.config.collection_name
+        target_fields = _required_schema_fields(dimension or self.config.vector_dim)
+
+        if self.client.has_collection(collection_name):
+            existing = self.client.describe_collection(collection_name)
+            existing_names = {field["name"] for field in existing.get("fields", [])}
+            required_names = set(target_fields.keys())
+            if required_names.issubset(existing_names):
+                self.client.load_collection(collection_name)
+                return
+
+            logger.warning(
+                "Collection %s schema is stale (missing %s). Dropping and recreating.",
+                collection_name,
+                sorted(required_names - existing_names),
+            )
+            self.client.drop_collection(collection_name)
+
         schema = self.client.create_schema(auto_id=False, enable_dynamic_field=True)
-        schema.add_field("id", DataType.VARCHAR, is_primary=True, max_length=512)
-        schema.add_field("vector", DataType.FLOAT_VECTOR, dim=dimension or self.config.vector_dim)
-        schema.add_field(
-            "text",
-            DataType.VARCHAR,
-            max_length=65535,
-            enable_analyzer=True,
-            analyzer_params={"tokenizer": "jieba"},
-        )
-        schema.add_field("sparse_bm25", DataType.SPARSE_FLOAT_VECTOR)
+        for name, spec in target_fields.items():
+            schema.add_field(name, **spec)
 
         bm25_fn = Function(
             name="bm25_fn",
@@ -57,10 +71,11 @@ class MilvusVectorStore:
         index_params.add_index(field_name="sparse_bm25", index_type="SPARSE_INVERTED_INDEX", metric_type="BM25")
 
         self.client.create_collection(
-            collection_name=self.config.collection_name,
+            collection_name=collection_name,
             schema=schema,
             index_params=index_params,
         )
+        self.client.load_collection(collection_name)
 
     def upsert_embeddings(self, embedding_result: EmbeddingResult) -> VectorStoreResult:
         """把 embedding 结果 upsert 到 Milvus（text 字段由 BM25 函数自动生成 sparse_bm25）。"""
@@ -94,8 +109,7 @@ class MilvusVectorStore:
     def search_chunks(self, query: str, query_vector: list[float], top_k: int = 5) -> RetrievalResult:
         """原生 BM25 混合检索 + RRF 融合。"""
 
-        if not self.client.has_collection(self.config.collection_name):
-            raise MilvusVectorStoreError(f"Collection `{self.config.collection_name}` does not exist.")
+        self.ensure_collection()
 
         from pymilvus import AnnSearchRequest, WeightedRanker
 
@@ -125,6 +139,40 @@ class MilvusVectorStore:
 
 
 # ── helpers ──────────────────────────────────────────────────────────
+
+def _required_schema_fields(vector_dim: int) -> dict[str, dict[str, Any]]:
+    """当前代码依赖的全部字段定义；用于创建/校验 collection schema。"""
+
+    from pymilvus import DataType
+
+    return {
+        "id": {"datatype": DataType.VARCHAR, "is_primary": True, "max_length": 512},
+        "vector": {"datatype": DataType.FLOAT_VECTOR, "dim": vector_dim},
+        "text": {
+            "datatype": DataType.VARCHAR,
+            "max_length": 65535,
+            "enable_analyzer": True,
+            "analyzer_params": {"tokenizer": "jieba"},
+        },
+        "sparse_bm25": {"datatype": DataType.SPARSE_FLOAT_VECTOR},
+        "chunk_id": {"datatype": DataType.VARCHAR, "max_length": 512},
+        "chunk_index": {"datatype": DataType.INT64},
+        "source_path": {"datatype": DataType.VARCHAR, "max_length": 4096},
+        "document_title": {"datatype": DataType.VARCHAR, "max_length": 1024},
+        "heading_path_json": {"datatype": DataType.VARCHAR, "max_length": 4096},
+        "heading_path": {
+            "datatype": DataType.ARRAY,
+            "element_type": DataType.VARCHAR,
+            "max_length": 512,
+            "max_capacity": 64,
+        },
+        "content": {"datatype": DataType.VARCHAR, "max_length": 65535},
+        "content_b64": {"datatype": DataType.VARCHAR, "max_length": 65535},
+        "token_count": {"datatype": DataType.INT64},
+        "start_line": {"datatype": DataType.INT64},
+        "end_line": {"datatype": DataType.INT64},
+    }
+
 
 def _output_fields() -> list[str]:
     return [
@@ -159,13 +207,34 @@ def _create_milvus_client(config: MilvusStoreConfig):
         from pymilvus import MilvusClient
     except ImportError as exc:
         raise MilvusVectorStoreError("Missing pymilvus.") from exc
-    kwargs: dict[str, Any] = {"uri": config.uri}
+
+    uri = _resolve_milvus_uri(config)
+    kwargs: dict[str, Any] = {"uri": uri}
     if config.token:
         kwargs["token"] = config.token
     try:
         return MilvusClient(**kwargs, timeout=config.timeout_seconds)
     except Exception as exc:
-        raise MilvusVectorStoreError(f"Failed to connect to Milvus at {config.uri}: {exc}") from exc
+        raise MilvusVectorStoreError(f"Failed to connect to Milvus at {uri}: {exc}") from exc
+
+
+def _resolve_milvus_uri(config: MilvusStoreConfig) -> str:
+    """根据配置选择 Milvus 服务地址或本地 Milvus Lite db 路径。"""
+
+    if config.lite_enabled:
+        lite_path = config.lite_path.strip()
+        if not lite_path:
+            raise MilvusVectorStoreError("MILVUS_LITE_PATH is empty but MILVUS_LITE_ENABLED=true")
+        if lite_path.startswith("http://") or lite_path.startswith("https://") or lite_path.startswith("/"):
+            return lite_path
+        db_path = PROJECT_ROOT / lite_path
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        return str(db_path.resolve())
+
+    uri = config.uri.strip()
+    if not uri:
+        raise MilvusVectorStoreError("MILVUS_URI is empty and MILVUS_LITE_ENABLED=false")
+    return uri
 
 
 def _embedding_to_point(embedding) -> dict[str, Any]:

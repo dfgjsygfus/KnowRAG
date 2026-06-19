@@ -50,6 +50,7 @@ let petFrameTimer = null;
 let unlistenChatSubmit = null;
 let unlistenChatClosed = null;
 let unlistenPetMoved = null;
+let danmakuResizeObserver = null;
 
 onMounted(() => {
   petFrameTimer = window.setInterval(() => {
@@ -58,7 +59,6 @@ onMounted(() => {
   }, PET_FRAME_INTERVAL_MS);
 
   listen("pet-chat-submit", ({ payload }) => {
-    isChatInputOpen.value = false;
     void askQuestion(payload?.question || "");
   }).then((unlisten) => {
     unlistenChatSubmit = unlisten;
@@ -85,6 +85,15 @@ onMounted(() => {
   } catch {
     // Browser dev mode has no native window API.
   }
+
+  if (typeof ResizeObserver !== "undefined") {
+    danmakuResizeObserver = new ResizeObserver(() => {
+      void updateDanmakuOverflow();
+    });
+    if (danmakuTextRef.value) {
+      danmakuResizeObserver.observe(danmakuTextRef.value);
+    }
+  }
 });
 
 onBeforeUnmount(() => {
@@ -96,6 +105,7 @@ onBeforeUnmount(() => {
   if (unlistenChatSubmit) unlistenChatSubmit();
   if (unlistenChatClosed) unlistenChatClosed();
   if (unlistenPetMoved) unlistenPetMoved();
+  if (danmakuResizeObserver) danmakuResizeObserver.disconnect();
   void closePetChatWindow();
 });
 
@@ -172,11 +182,16 @@ const isAnswerLong = computed(() => {
   return content.length > DANMAKU_MAX_CHARS;
 });
 
+const isTyping = computed(() => {
+  const msg = latestAssistantBubble.value;
+  return !!msg && !msg.content && !msg.errorMessage;
+});
+
 const danmakuText = computed(() => {
   const msg = latestAssistantBubble.value;
   if (!msg) return "";
   if (msg.errorMessage) return msg.errorMessage;
-  if (!msg.content) return "思考中...";
+  if (!msg.content) return "思考中";
   const flat = msg.content.replace(/\s+/g, " ").trim();
   if (isAnswerLong.value) return flat.slice(0, DANMAKU_MAX_CHARS) + "…";
   return flat;
@@ -185,6 +200,9 @@ const danmakuText = computed(() => {
 // ── Danmaku persistence: stays after closing light chat, fades after a content-aware delay ──
 const danmakuVisible = ref(false);
 const danmakuFading = ref(false);
+const danmakuTextRef = ref(null);
+const isDanmakuTextOverflowing = ref(false);
+const isDanmakuExpandable = computed(() => isAnswerLong.value || isDanmakuTextOverflowing.value);
 let danmakuFadeTimer = null;
 let danmakuLifespanMs = 0;
 let danmakuFadeDeadline = 0;
@@ -199,6 +217,16 @@ function showDanmaku() {
   if (chatSurface.value === "pet") {
     void resizeWindow();
   }
+  void updateDanmakuOverflow();
+}
+
+function updateDanmakuOverflow() {
+  const el = danmakuTextRef.value;
+  if (!el) {
+    isDanmakuTextOverflowing.value = false;
+    return;
+  }
+  isDanmakuTextOverflowing.value = el.scrollHeight > el.clientHeight + 1;
 }
 
 function scheduleDanmakuFadeOut() {
@@ -267,6 +295,18 @@ function windowSizeOptions(surface = chatSurface.value) {
 // Watch for new assistant bubble → show danmaku
 watch(() => latestAssistantBubble.value, (bubble) => {
   if (bubble) showDanmaku();
+});
+
+watch(danmakuTextRef, (el) => {
+  if (danmakuResizeObserver) {
+    danmakuResizeObserver.disconnect();
+    if (el) danmakuResizeObserver.observe(el);
+  }
+  void updateDanmakuOverflow();
+});
+
+watch([danmakuText, chatSurface], () => {
+  void updateDanmakuOverflow();
 });
 
 async function setChatSurface(surface) {
@@ -651,16 +691,23 @@ function spawnParticle(label) {
       class="light-answer-float"
       :class="{
         'light-answer-error': latestAssistantBubble?.errorMessage,
-        'light-answer-typing': !latestAssistantBubble?.content && !latestAssistantBubble?.errorMessage,
-        'light-answer-long': isAnswerLong,
+        'light-answer-typing': isTyping,
+        'light-answer-long': isDanmakuExpandable,
         'danmaku-fading': danmakuFading,
       }"
       @mouseenter="onDanmakuEnter"
       @mouseleave="onDanmakuLeave"
-      @click="isAnswerLong ? expandToFullFromDanmaku() : undefined"
+      @click="isDanmakuExpandable ? expandToFullFromDanmaku() : undefined"
     >
-      <span class="light-answer-text">{{ danmakuText }}</span>
-      <span v-if="isAnswerLong" class="light-answer-expand">展开全文 →</span>
+      <span ref="danmakuTextRef" class="light-answer-text">
+        {{ danmakuText }}
+        <span v-if="isTyping" class="typing-dots" aria-hidden="true">
+          <span class="typing-dot"></span>
+          <span class="typing-dot"></span>
+          <span class="typing-dot"></span>
+        </span>
+      </span>
+      <span v-if="isDanmakuExpandable" class="light-answer-expand">展开全文 →</span>
     </span>
 
     <!-- ── Full chat panel (only visible in full mode) ── -->

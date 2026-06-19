@@ -555,6 +555,128 @@ button {
   white-space: pre-wrap;
 }
 
+.fc-text.markdown-body {
+  white-space: normal;
+}
+
+.fc-text.markdown-body :first-child {
+  margin-top: 0;
+}
+
+.fc-text.markdown-body :last-child {
+  margin-bottom: 0;
+}
+
+.fc-text.markdown-body p {
+  margin: 0.6em 0;
+}
+
+.fc-text.markdown-body h1,
+.fc-text.markdown-body h2,
+.fc-text.markdown-body h3,
+.fc-text.markdown-body h4,
+.fc-text.markdown-body h5,
+.fc-text.markdown-body h6 {
+  margin: 0.8em 0 0.4em;
+  color: var(--text);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.fc-text.markdown-body h1 { font-size: 1.35em; }
+.fc-text.markdown-body h2 { font-size: 1.2em; }
+.fc-text.markdown-body h3 { font-size: 1.1em; }
+.fc-text.markdown-body h4,
+.fc-text.markdown-body h5,
+.fc-text.markdown-body h6 { font-size: 1em; }
+
+.fc-text.markdown-body ul,
+.fc-text.markdown-body ol {
+  margin: 0.6em 0;
+  padding-left: 1.4em;
+}
+
+.fc-text.markdown-body li {
+  margin: 0.25em 0;
+}
+
+.fc-text.markdown-body code {
+  padding: 0.15em 0.35em;
+  border-radius: 5px;
+  background: rgba(210, 180, 150, 0.22);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+.fc-text.markdown-body pre {
+  margin: 0.6em 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  border-radius: 10px;
+  background: rgba(250, 245, 240, 0.95);
+  border: 1px solid rgba(210, 180, 150, 0.25);
+}
+
+.fc-text.markdown-body pre code {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 0.9em;
+  white-space: pre;
+}
+
+.fc-text.markdown-body blockquote {
+  margin: 0.6em 0;
+  padding: 0.4em 0.9em;
+  border-left: 3px solid var(--accent);
+  background: rgba(254, 240, 232, 0.5);
+  border-radius: 0 8px 8px 0;
+  color: #5a4530;
+}
+
+.fc-text.markdown-body a {
+  color: #c06040;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.fc-text.markdown-body a:hover {
+  color: #a04030;
+}
+
+.fc-text.markdown-body hr {
+  margin: 0.8em 0;
+  border: 0;
+  border-top: 1px solid rgba(210, 180, 150, 0.35);
+}
+
+.fc-text.markdown-body table {
+  width: 100%;
+  margin: 0.6em 0;
+  border-collapse: collapse;
+  font-size: 0.95em;
+}
+
+.fc-text.markdown-body th,
+.fc-text.markdown-body td {
+  padding: 6px 8px;
+  border: 1px solid rgba(210, 180, 150, 0.35);
+  text-align: left;
+}
+
+.fc-text.markdown-body th {
+  background: rgba(254, 240, 232, 0.6);
+  font-weight: 600;
+}
+
+.fc-text.markdown-body strong {
+  font-weight: 700;
+}
+
+.fc-text.markdown-body em {
+  font-style: italic;
+}
+
 .fc-meta {
   display: flex;
   gap: 6px;
@@ -570,7 +692,7 @@ button {
   font-size: 12px;
 }
 
-.fc-refs summary {
+.fc-refs > summary {
   padding: 8px 10px;
   background: var(--kb-badge);
   color: #b08860;
@@ -579,7 +701,7 @@ button {
   transition: background 0.15s;
 }
 
-.fc-refs summary:hover {
+.fc-refs > summary:hover {
   background: #efe0d0;
 }
 
@@ -587,6 +709,8 @@ button {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
   padding: 8px 10px;
   background: #fefcf9;
 }
@@ -600,22 +724,75 @@ button {
   line-height: 1.4;
 }
 
+.fc-ref-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .fc-ref-item strong {
   display: block;
   color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .fc-ref-item small {
   display: block;
-  margin-top: 2px;
+  flex-shrink: 0;
   color: var(--accent);
   font-family: var(--font-mono);
+  font-size: 10px;
 }
 
-.fc-ref-item p {
-  margin-top: 5px;
+.fc-ref-location {
+  margin-top: 4px;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+.fc-ref-excerpt {
+  margin-top: 5px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.fc-ref-full {
+  margin-top: 6px;
+}
+
+.fc-ref-full > summary {
+  display: inline-block;
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.fc-ref-full > summary:hover {
+  text-decoration: underline;
+}
+
+.fc-ref-full .markdown-body {
+  margin-top: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(255, 251, 247, 0.95);
+  border: 1px solid rgba(210, 180, 150, 0.2);
+  font-size: 11px;
+}
+
+.fc-ref-full .markdown-body pre {
+  max-height: 160px;
+  overflow: auto;
 }
 
 /* ── Light chat mode ── */
@@ -697,19 +874,69 @@ button {
   color: #b84a30;
 }
 
-.light-answer-typing .light-answer-text {
-  color: #8b6914;
+/* ── Typing state: cute speech bubble with tail and bouncing dots ── */
+.light-answer-float.light-answer-typing {
+  padding: 6px 12px 6px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(140, 100, 60, 0.08);
+  box-shadow: 0 5px 18px rgba(140, 100, 60, 0.12);
 }
 
-.light-answer-typing::after {
+.light-answer-float.light-answer-typing::after {
   content: "";
-  display: inline-block;
-  width: 1px;
-  height: 12px;
-  margin-left: 2px;
-  vertical-align: text-bottom;
-  background: var(--accent);
-  animation: cursorBlink 0.7s infinite;
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 10px;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  border-right: 1px solid rgba(140, 100, 60, 0.08);
+  border-bottom: 1px solid rgba(140, 100, 60, 0.08);
+  transform: translateX(-50%) rotate(45deg);
+  box-shadow: 2px 2px 4px rgba(140, 100, 60, 0.06);
+}
+
+.light-answer-typing .light-answer-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #8b6914;
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.typing-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 1px;
+}
+
+.typing-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #c9a050;
+  animation: typingBounce 1.1s ease-in-out infinite;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes typingBounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-4px);
+  }
 }
 
 .light-input-row {
