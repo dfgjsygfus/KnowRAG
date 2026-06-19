@@ -13,7 +13,6 @@ KnowRAG 是一个本地知识库问答项目，包含 FastAPI 后端、文档入
 - 意图路由：区分知识库问答、闲聊等请求，减少不必要检索。
 - 管理台：后端内置 `/admin` 页面，可上传、入库、预览文档并配置对话模型。
 - 桌面宠物：Tauri + Vue 桌宠窗口，支持轻量输入框、完整聊天、管理台窗口和右键菜单。
-- 评测脚本：支持 retrieval 召回评测和端到端回答质量评测。
 
 ## 项目结构
 
@@ -26,10 +25,8 @@ KnowRAG 是一个本地知识库问答项目，包含 FastAPI 后端、文档入
 │       └── services/        # 文档、切分、Milvus、Embedding、RAG、模型配置等逻辑
 ├── desktop-pet/             # Tauri + Vue 桌面宠物客户端
 ├── frontend/                # 后端直接服务的静态管理台页面：/admin
-├── evaluation/              # 检索评测数据集和报告
 ├── infra/milvus/            # Docker 版 Milvus Compose 配置
-├── scripts/                 # 评测、Milvus 启停等脚本
-├── tests/                   # 后端单元测试
+├── scripts/                 # Milvus 启停等脚本
 ├── data/                    # 本地运行数据，包含 SQLite / Milvus Lite / 模型设置等
 ├── main.py                  # FastAPI 应用入口
 └── requirements.txt         # Python 依赖
@@ -261,92 +258,21 @@ QUERY_ROUTER_LLM_ENABLED=true
 WeightedRanker(dense=0.1, sparse=0.9)
 ```
 
-如果你的文档更偏语义问答，可以尝试提高 `RETRIEVAL_DENSE_WEIGHT`，并用评测脚本重新验证。
-
-## 评测
-
-检索评测数据集：
-
-```text
-evaluation/retrieval_seed.jsonl
-```
-
-运行 retrieval 评测：
-
-```powershell
-python scripts/evaluate_retrieval.py --dataset evaluation/retrieval_seed.jsonl --top-k 5
-```
-
-报告默认写入：
-
-```text
-evaluation/reports/
-```
-
-最近一次 30 条评测的结果示例：
-
-```text
-Cases: 30
-Errors: 0
-Recall@5: 0.9565
-MRR: 0.9130
-Precision@1: 0.8696
-Recommended RAG_MIN_SCORE: 0.863217
-```
-
-端到端 RAG 回答评测：
-
-```powershell
-python scripts/evaluate_rag_answer.py --dataset evaluation/retrieval_seed.jsonl
-```
-
-回答评测会调用生成模型作为 judge，运行前需要确认模型配置可用。
-
-## 测试
-
-后端测试：
-
-```powershell
-python -m unittest
-```
-
-桌宠前端测试：
-
-```powershell
-cd desktop-pet
-npm test
-```
-
-桌宠构建检查：
-
-```powershell
-cd desktop-pet
-npm run build
-```
-
 ## 常见问题
 
 ### 1. 入库时报 `Missing SILICONFLOW_API_KEY`
 
 `.env` 中没有配置 `SILICONFLOW_API_KEY`，或者当前启动目录读不到 `.env`。项目会同时尝试读取当前目录和项目根目录下的 `.env`。
 
-### 2. 检索评测全部报错
-
-先看报告里的 `error` 字段：
-
-- Embedding 请求失败：检查 `SILICONFLOW_API_KEY`、网络和 base URL。
-- Milvus 连接失败：确认 Milvus Lite 路径可写，或 Docker 版 Milvus 已启动。
-- `valid=false`：说明评测过程中存在异常，不能把 Recall/MRR 当作有效质量指标。
-
-### 3. 修改 chunk 参数后效果没变
+### 2. 修改 chunk 参数后效果没变
 
 已经入库的文档不会自动重切分。需要删除旧文档或重新入库，才能让新的 `CHUNK_MAX_TOKENS`、`CHUNK_OVERLAP_TOKENS` 等配置生效。
 
-### 4. 切换 Milvus Lite 和 Docker Milvus 后检索不到文档
+### 3. 切换 Milvus Lite 和 Docker Milvus 后检索不到文档
 
 两者的数据不共享。切换后需要重新上传或重新入库文档。
 
-### 5. 桌宠无法回答或一直显示错误
+### 4. 桌宠无法回答或一直显示错误
 
 先确认：
 
@@ -354,10 +280,3 @@ npm run build
 - 桌宠的 `VITE_API_BASE_URL` 指向正确后端。
 - 管理台里对话模型连接测试通过。
 - 知识库文档已经入库。
-
-## 开发提示
-
-- 本地数据默认写入 `data/`，包括 SQLite、Milvus Lite 和模型设置。
-- `.env` 不应提交到 Git。
-- `evaluation/reports/` 中的评测报告用于对比检索质量。
-- 修改 RAG 阈值、检索权重、chunk 策略后，建议至少跑一轮 retrieval 评测。
